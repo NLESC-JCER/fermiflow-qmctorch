@@ -1,18 +1,28 @@
 import torch
 torch.set_default_dtype(torch.float64)
 
-from orbitals import HO2D
+from orbitals import HO2D, Orbitals
 from base_dist import FreeFermion
 
 from MLP import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
-from potentials import HO, CoulombPairPotential
+from potentials import HO, qmctorch_pot, CoulombPairPotential
 from VMC import GSVMC
 
 from qmctorch.scf import Molecule
 from qmctorch.wavefunction import SlaterJastrow
+
+def one_orbital(orb_idx):
+    def orbital(x):
+        Nbatch, N, dim = x.shape
+        # reshape FF pos to QMCT pos: (Nbatch, N, dim) -> (Nbatch, N*dim) where dim is faster (x1,y1,z1,x2,...,zN)
+        x = x.view(Nbatch, N*dim)
+        mo = wf.pos2mo(x)
+        mo = mo.view(Nbatch, N, -1)
+        return mo[..., orb_idx]
+    return orbital
 
 if __name__ == "__main__":
     import argparse
@@ -29,8 +39,8 @@ if __name__ == "__main__":
     parser.add_argument("--t0", type=float, default=0.0, help="starting time")
     parser.add_argument("--t1", type=float, default=1.0, help="ending time")
 
-    parser.add_argument("--iternum", type=int, default=1000, help="number of new iterations")
-    parser.add_argument("--batch", type=int, default=8000, help="batch size")
+    parser.add_argument("--iternum", type=int, default=10, help="number of new iterations")
+    parser.add_argument("--batch", type=int, default=80, help="batch size")
     
     args = parser.parse_args()
 
@@ -40,10 +50,8 @@ if __name__ == "__main__":
     mol = Molecule(atom='H 0 0 -0.69; H 0 0 0.69', calculator='pyscf', basis='sto-3g', unit='bohr')
     wf = SlaterJastrow(mol)
 
-    orbitals = [wf.pos2mo]      # pos2mo takes shape (batch, dim*N), while Fermiflow uses (batch, N, dim)
-                                #   Somewhere we need pos = torch.cat([pos[:,i,:] for i in range(N)],1)
-                                #   Moreover, in FF, orbitals is a list of orbitals to be filled with electrons
-                                #   Now we only need one (1 up, 1 down).
+    orbitals = Orbitals()
+    orbitals.orbitals = [one_orbital(i) for i in range(wf.nmo_opt)]  
     basedist = FreeFermion(device=device)
 
     eta = MLP(1, args.Deta)
@@ -59,9 +67,7 @@ if __name__ == "__main__":
 
     cnf = CNF(v, t_span)
 
-    sp_potential = wf.nuclear_potential     # In Fermiflow the actual potential is the method V(x) of class sp_potential,
-                                            # viz. sp_potential takes instance sp_potential, and it is evaluated sp_potentail.V
-                                            # What is the best policy?
+    sp_potential = qmctorch_pot(wf.nuclear_potential)
     pair_potential = CoulombPairPotential(args.Z)
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 

@@ -12,6 +12,20 @@ class HO(SPPotential):
 
     def V(self, x):
         return 0.5 * (x**2).sum(dim=(-2, -1))
+    
+class qmctorch_pot(SPPotential):
+    def __init__(self, nuclear_potential):
+        super(SPPotential, self).__init__()
+        self.nuclear_potential = nuclear_potential
+
+    def V(self, x):
+        Nbatch, N, dim = x.shape
+        # reshape FF pos to QMCT pos: (Nbatch, N, dim) -> (Nbatch, N*dim) where dim is faster (x1,y1,z1,x2,...,zN)
+        x = x.view(Nbatch, N*dim)
+        # Pass pos to nuclear_potential
+        v_en = self.nuclear_potential(x)
+        # N.B. output nuclear_potential already shape (Nbatch,1)
+        return v_en.squeeze()
 
 # ==================================================================================
 
