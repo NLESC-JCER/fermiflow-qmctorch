@@ -41,6 +41,7 @@ if __name__ == "__main__":
     wf = SlaterJastrow(mol)
 
     orbitals = [wf.pos2mo]      # pos2mo takes shape (batch, dim*N), while Fermiflow uses (batch, N, dim)
+                                #   Somewhere we need pos = torch.cat([pos[:,i,:] for i in range(N)],1)
                                 #   Moreover, in FF, orbitals is a list of orbitals to be filled with electrons
                                 #   Now we only need one (1 up, 1 down).
     basedist = FreeFermion(device=device)
