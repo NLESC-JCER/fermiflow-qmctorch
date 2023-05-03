@@ -14,6 +14,12 @@ from VMC import GSVMC
 from qmctorch.scf import Molecule
 from qmctorch.wavefunction import SlaterJastrow
 
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import glob
+from PIL import Image
+
 def one_orbital(orb_idx):
     def orbital(x):
         Nbatch, N, dim = x.shape
@@ -41,6 +47,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--iternum", type=int, default=10, help="number of new iterations")
     parser.add_argument("--batch", type=int, default=80, help="batch size")
+
+    parser.add_argument("--viz", action="store_true", help="Visualize results")
+    parser.add_argument('--results_dir', type=str, default="./results")
     
     args = parser.parse_args()
 
@@ -92,3 +101,124 @@ if __name__ == "__main__":
         speed = (time.time() - start) * 100 / 3600
         print("iter: %03d" % i, "E:", model.E, "E_std:", model.E_std, 
                 "Instant speed (hours per 100 iters):", speed)
+ 
+    if args.viz:
+        viz_samples = 3000
+        viz_timesteps = 41
+
+        print('Start vizualisation of', viz_samples, 'samples in', viz_timesteps, 'timesteps')
+
+        if not os.path.exists(args.results_dir):
+            os.makedirs(args.results_dir)
+        with torch.no_grad():
+            # Generate evolution of samples
+            q_samples = model.basedist.sample(model.orbitals_up, model.orbitals_down, (viz_samples,))
+            q_t_samples = model.cnf.generate(q_samples, nframes=viz_timesteps)
+
+            res = 100
+            # Generate evolution of density
+            q_x = np.linspace(-1.5, 1.5, res)
+            q_y = np.linspace(-1.5, 1.5, res)
+            q_z = np.linspace(-1.5, 1.5, res)
+            points = np.vstack(np.meshgrid(q_x, q_y, q_z)).reshape([3, -1]).T
+            points = np.expand_dims(points, axis=1)
+
+            q_density = torch.tensor(points).to(device)
+            logp_diff = torch.zeros(q_density.shape[0], 1).to(device)
+ 
+            q_t_density = model.cnf.generate(q_density, nframes=viz_timesteps)
+            
+            # q_t_(samples/density) of shape (viz_timesteps, ...), so each time step
+            #   should be projected on plane (sum over 1 of the 3 remaining axes).
+
+            # For the logp: coordinates go like (((for z in zs) for x in xs) for y in ys).
+            #   So after exponent:  py = [p[i::10000].sum() for i in range(10000)]
+            #                       px = [p[i:i+10000:100].sum() for i in range(0, 1000000, 10000)]
+            #                       pz = [p[i:i+100:1].sum() for i in range(0, 1000000, 100)]
+            
+            # Create plots for each timestep
+            for (t, q_sample, q_density) in zip(
+                    np.linspace(args.t0, args.t1, viz_timesteps),
+                    q_t_samples, q_t_density
+            ):
+                print('Create plot for time', np.round(t,3), 'out of', args.t1)
+                fig = plt.figure(figsize=(12, 8), dpi=200)
+                plt.tight_layout()
+                plt.axis('off')
+                plt.margins(0, 0)
+                fig.suptitle(f'{t:.2f}s')
+
+                ax1 = fig.add_subplot(2, 3, 1)
+                ax1.set_title('Molecule')
+                ax1.set_xlim(-1.5, 1.5)
+                ax1.set_ylim(-1.5, 1.5)
+                ax1.set_ylabel('XZ-plane')
+                ax1.get_xaxis().set_ticks([])
+                ax1.get_yaxis().set_ticks([])
+                ax2 = fig.add_subplot(2, 3, 2)
+                ax2.set_title('Samples')
+                ax2.get_xaxis().set_ticks([])
+                ax2.get_yaxis().set_ticks([])
+                ax3 = fig.add_subplot(2, 3, 3)
+                ax3.set_title('Log Probability')
+                ax3.get_xaxis().set_ticks([])
+                ax3.get_yaxis().set_ticks([])
+                ax4 = fig.add_subplot(2, 3, 4)
+                ax4.set_xlim(-1.5, 1.5)
+                ax4.set_ylim(-1.5, 1.5)
+                ax4.set_ylabel('XY-plane')
+                ax4.get_xaxis().set_ticks([])
+                ax4.get_yaxis().set_ticks([])
+                ax5 = fig.add_subplot(2, 3, 5)
+                ax5.get_xaxis().set_ticks([])
+                ax5.get_yaxis().set_ticks([])
+                ax6 = fig.add_subplot(2, 3, 6)
+                ax6.get_xaxis().set_ticks([])
+                ax6.get_yaxis().set_ticks([])
+                
+                atom_names_coords = [a.split() for a in mol.atoms_str.split(';')]
+                atom_names = [a[0] for a in atom_names_coords]
+                atom_coords =  np.array([[float(c) for c in a[1:]] for a in atom_names_coords])
+                x_atoms, y_atoms, z_atoms = atom_coords[:,0], atom_coords[:,1], atom_coords[:,2]
+
+                # Everything in XZ-plane
+                ax1.scatter(x_atoms, z_atoms, s=50, c='tab:blue')
+
+                ax2.hist2d(q_sample.detach().cpu().numpy().T[0].flatten(), q_sample.detach().cpu().numpy().T[2].flatten(),
+                           bins=300, density=True,
+                           range=[[-1.5, 1.5], [-1.5, 1.5]])
+
+                model.cnf.t_span_reverse = args.t1, t
+                if not t<args.t1:
+                    model.cnf.t_span_reverse = args.t1, args.t1-(args.t1-args.t0)/viz_timesteps/100
+                
+                _, logp_diff = model.cnf.delta_logp(q_density)
+                logp = model.basedist.log_prob(model.orbitals_up, model.orbitals_down, q_density) - logp_diff.view(-1)
+
+                p = np.exp(logp.detach().cpu().numpy())
+                py = np.array([p[i::res**2].sum() for i in range(res**2)])                      # project on xz (sum over y)
+                px = np.array([p[i:i+res**2:res].sum() for i in range(0, res**3, res**2)])     # project on yz (sum over x)
+                pz = np.array([p[i:i+res:1].sum() for i in range(0, res**3, res)])           # project on xy (sum over z)
+
+                ax3.tricontourf(*np.vstack(np.meshgrid(q_x, q_z)).reshape([2, -1]),
+                                py, 200)
+                
+                # Everything in XY-plane
+                ax4.scatter(x_atoms, y_atoms, s=50, c='tab:blue')
+
+                ax5.hist2d(q_sample.detach().cpu().numpy().T[0].flatten(), q_sample.detach().cpu().numpy().T[1].flatten(),
+                           bins=300, density=True,
+                           range=[[-1.5, 1.5], [-1.5, 1.5]])
+                
+                ax6.tricontourf(*np.vstack(np.meshgrid(q_x, q_y)).reshape([2, -1]),
+                                pz, 200)
+                
+                plt.savefig(os.path.join(args.results_dir, f"h2-cnf-viz-{int(t*1000):05d}.jpg"),
+                           pad_inches=0.2, bbox_inches='tight')
+                plt.close()
+
+            img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"h2-cnf-viz-*.jpg")))]
+            img.save(fp=os.path.join(args.results_dir, "h2-cnf-viz.gif"), format='GIF', append_images=imgs,
+                     save_all=True, duration=250, loop=0)
+
+        print('Saved visualization animation at {}'.format(os.path.join(args.results_dir, "h2-cnf-viz.gif")))
