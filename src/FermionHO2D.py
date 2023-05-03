@@ -24,10 +24,10 @@ if __name__ == "__main__":
     parser.add_argument("--nomu", action="store_true", help="do not use the one-body backflow potential mu")
     parser.add_argument("--Dmu", type=int, default=50, help="hidden layer size in the MLP representation of one-body backflow potential mu")
     parser.add_argument("--t0", type=float, default=0.0, help="starting time")
-    parser.add_argument("--t1", type=float, default=.1, help="ending time")
+    parser.add_argument("--t1", type=float, default=1, help="ending time")
 
-    parser.add_argument("--iternum", type=int, default=10, help="number of new iterations")
-    parser.add_argument("--batch", type=int, default=80, help="batch size")
+    parser.add_argument("--iternum", type=int, default=1000, help="number of new iterations")
+    parser.add_argument("--batch", type=int, default=8000, help="batch size")
     
     args = parser.parse_args()
 
