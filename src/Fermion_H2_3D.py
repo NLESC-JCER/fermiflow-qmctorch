@@ -19,6 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import glob
 from PIL import Image
+from mendeleev import element
 
 def one_orbital(orb_idx):
     def orbital(x):
@@ -104,9 +105,16 @@ if __name__ == "__main__":
  
     if args.viz:
         viz_samples = 3000
-        viz_timesteps = 41
+        viz_timesteps = 21
 
-        print('Start vizualisation of', viz_samples, 'samples in', viz_timesteps, 'timesteps')
+        print('Start vizualisation of evolution of', viz_samples, 'samples in', viz_timesteps, 'timesteps')
+        
+        # Relevant data for plotting of molecule
+        atom_names_coords = [a.split() for a in mol.atoms_str.split(';')]
+        atom_names = [a[0] for a in atom_names_coords]
+        atom_coords =  np.array([[float(c) for c in a[1:]] for a in atom_names_coords])
+        x_atoms, y_atoms, z_atoms = atom_coords[:,0], atom_coords[:,1], atom_coords[:,2]
+        radii = [element(a).atomic_radius*0.0189 for a in atom_names]       # attribute in pm, need bohr
 
         if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
@@ -115,7 +123,7 @@ if __name__ == "__main__":
             q_samples = model.basedist.sample(model.orbitals_up, model.orbitals_down, (viz_samples,))
             q_t_samples = model.cnf.generate(q_samples, nframes=viz_timesteps)
 
-            res = 100
+            res = 40
             # Generate evolution of density
             q_x = np.linspace(-1.5, 1.5, res)
             q_y = np.linspace(-1.5, 1.5, res)
@@ -133,7 +141,7 @@ if __name__ == "__main__":
 
             # For the logp: coordinates go like (((for z in zs) for x in xs) for y in ys).
             #   So after exponent:  py = [p[i::10000].sum() for i in range(10000)]
-            #                       px = [p[i:i+10000:100].sum() for i in range(0, 1000000, 10000)]
+            #       (for res=100)   px = [p[i:i+10000:100].sum() for i in range(0, 1000000, 10000)]
             #                       pz = [p[i:i+100:1].sum() for i in range(0, 1000000, 100)]
             
             # Create plots for each timestep
@@ -146,7 +154,7 @@ if __name__ == "__main__":
                 plt.tight_layout()
                 plt.axis('off')
                 plt.margins(0, 0)
-                fig.suptitle(f'{t:.2f}s')
+                fig.suptitle(f'{t:.2f}')
 
                 ax1 = fig.add_subplot(2, 3, 1)
                 ax1.set_title('Molecule')
@@ -176,42 +184,49 @@ if __name__ == "__main__":
                 ax6.get_xaxis().set_ticks([])
                 ax6.get_yaxis().set_ticks([])
                 
-                atom_names_coords = [a.split() for a in mol.atoms_str.split(';')]
-                atom_names = [a[0] for a in atom_names_coords]
-                atom_coords =  np.array([[float(c) for c in a[1:]] for a in atom_names_coords])
-                x_atoms, y_atoms, z_atoms = atom_coords[:,0], atom_coords[:,1], atom_coords[:,2]
-
-                # Everything in XZ-plane
-                ax1.scatter(x_atoms, z_atoms, s=50, c='tab:blue')
-
-                ax2.hist2d(q_sample.detach().cpu().numpy().T[0].flatten(), q_sample.detach().cpu().numpy().T[2].flatten(),
-                           bins=300, density=True,
-                           range=[[-1.5, 1.5], [-1.5, 1.5]])
-
+                # Calculate density at time t and projections on each plane
                 model.cnf.t_span_reverse = args.t1, t
                 if not t<args.t1:
                     model.cnf.t_span_reverse = args.t1, args.t1-(args.t1-args.t0)/viz_timesteps/100
                 
                 _, logp_diff = model.cnf.delta_logp(q_density)
                 logp = model.basedist.log_prob(model.orbitals_up, model.orbitals_down, q_density) - logp_diff.view(-1)
-
+                
                 p = np.exp(logp.detach().cpu().numpy())
-                py = np.array([p[i::res**2].sum() for i in range(res**2)])                      # project on xz (sum over y)
-                px = np.array([p[i:i+res**2:res].sum() for i in range(0, res**3, res**2)])     # project on yz (sum over x)
-                pz = np.array([p[i:i+res:1].sum() for i in range(0, res**3, res)])           # project on xy (sum over z)
 
-                ax3.tricontourf(*np.vstack(np.meshgrid(q_x, q_z)).reshape([2, -1]),
-                                py, 200)
+                print(logp.shape)
+                print(p.shape)
+
+                pXZ = np.array([p[i::res**2].sum() for i in range(res**2)])                     # project on xz (sum over y)
+                pYZ = np.array([[p[i:i+res**2:res].sum() for i in range(j, res**3, res**2)] for j in range(res)]).flatten()     # project on yz (sum over x)
+                pXY = np.array([p[i:i+res:1].sum() for i in range(0, res**3, res)])             # project on xy (sum over z)
+
+                print(pXZ.shape, pYZ.shape, pXY.shape)
+
+                # Everything in XZ-plane
+                for x,y,r in zip(x_atoms, z_atoms, radii):
+                    circle = plt.Circle((x, y), r, color='tab:blue') ; ax1.add_patch(circle)
+
+                ax2.hist2d(q_sample.detach().cpu().numpy().T[0].flatten(), q_sample.detach().cpu().numpy().T[2].flatten(),
+                           bins=200, density=True,
+                           range=[[-1.5, 1.5], [-1.5, 1.5]])
+
+                ax3.tricontourf(*np.vstack(np.meshgrid(q_z, q_x)[::-1]).reshape([2, -1]), pXZ, 200)     # q_x & q_z switched around 
+                                                                                                        #   as rescaling suggested
+                                                                                                        #   q_x was not along x-axis,
+                                                                                                        #   as it is in XY-plane plot.                               
+                #  for yz-plane: tricontourf(*np.vstack(np.meshgrid(q_z, q_y)).reshape([2, -1]), pYZ, 200)
                 
                 # Everything in XY-plane
-                ax4.scatter(x_atoms, y_atoms, s=50, c='tab:blue')
+                for x,y,r in zip(x_atoms, y_atoms, radii):
+                    circle = plt.Circle((x, y), r, color='tab:blue') ; ax4.add_patch(circle)
 
                 ax5.hist2d(q_sample.detach().cpu().numpy().T[0].flatten(), q_sample.detach().cpu().numpy().T[1].flatten(),
                            bins=300, density=True,
                            range=[[-1.5, 1.5], [-1.5, 1.5]])
                 
                 ax6.tricontourf(*np.vstack(np.meshgrid(q_x, q_y)).reshape([2, -1]),
-                                pz, 200)
+                                pXY, 200)
                 
                 plt.savefig(os.path.join(args.results_dir, f"h2-cnf-viz-{int(t*1000):05d}.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
