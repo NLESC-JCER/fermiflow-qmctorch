@@ -193,15 +193,9 @@ if __name__ == "__main__":
                 logp = model.basedist.log_prob(model.orbitals_up, model.orbitals_down, q_density) - logp_diff.view(-1)
                 
                 p = np.exp(logp.detach().cpu().numpy())
-
-                print(logp.shape)
-                print(p.shape)
-
                 pXZ = np.array([p[i::res**2].sum() for i in range(res**2)])                     # project on xz (sum over y)
                 pYZ = np.array([[p[i:i+res**2:res].sum() for i in range(j, res**3, res**2)] for j in range(res)]).flatten()     # project on yz (sum over x)
                 pXY = np.array([p[i:i+res:1].sum() for i in range(0, res**3, res)])             # project on xy (sum over z)
-
-                print(pXZ.shape, pYZ.shape, pXY.shape)
 
                 # Everything in XZ-plane
                 for x,y,r in zip(x_atoms, z_atoms, radii):
