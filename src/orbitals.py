@@ -53,6 +53,16 @@ class Orbitals(object):
                         for index_subset in indices)
         return states, Es
 
+class qmctorch_orbitals(Orbitals):
+    """
+        The single-particle orbitals of 2-dimensional isotropical harmonic potential.
+    The hamiltonian reads: h(r) = - 1/2 laplacian + 1/2 r^2, where r = (x_1, x_2) is
+    the coordinate vector in R^2.
+    """
+    def __init__(self):
+        super(qmctorch_orbitals, self).__init__()
+        self.orbitals = None
+
 class HO2D(Orbitals):
     """
         The single-particle orbitals of 2-dimensional isotropical harmonic potential.

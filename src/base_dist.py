@@ -1,5 +1,6 @@
 import torch
 torch.set_default_dtype(torch.float64)
+from utils import y_grad_laplacian
 
 class BaseDist(object):
     """ The base class of base (i.e., prior) distribution. """
@@ -55,12 +56,32 @@ class FreeFermion(BaseDist):
         logp = 2 * logabspsi
         return logp
 
+    def get_energy(self, orbitals_up, orbitals_down, x, pot_ee, pot_en):
+        x.requires_grad_(True)
+        f = lambda x: self.log_prob(orbitals_up, orbitals_down, x)
+        logp, grad_logp, laplacian_logp = y_grad_laplacian(f, x) 
+        kinetic = - 1/4 * laplacian_logp - 1/8 * (grad_logp**2).sum(dim=(-2, -1))
+        
+        potential = pot_ee.V(x)
+        if pot_en:
+            potential += pot_en.V(x)
+
+        x.requires_grad_(False)
+
+        Eloc = (kinetic + potential).detach()
+        E, E_std = Eloc.mean().item(), Eloc.std().item()
+        return E, E_std
+    
     def sample(self, orbitals_up, orbitals_down, sample_shape, 
-            equilibrim_steps=100, tau=0.1):
+            equilibrim_steps=100, tau=0.1, equilibration_energy=False, pot_ee=None, pot_en=None):
         #print("Sample a Slater determinant...")
         nup, ndown = len(orbitals_up), len(orbitals_down)
         x = torch.randn(*sample_shape, nup + ndown, 3, device=self.device)
         logp = self.log_prob(orbitals_up, orbitals_down, x)
+        self.E_eq = None
+        if equilibration_energy:
+            self.E_eq = [[self.get_energy(orbitals_up, orbitals_down, x, pot_ee, pot_en)]]
+        
         for _ in range(equilibrim_steps):
             new_x = x + tau * torch.randn_like(x)
             new_logp = self.log_prob(orbitals_up, orbitals_down, new_x)
@@ -68,6 +89,9 @@ class FreeFermion(BaseDist):
             accept = torch.rand_like(p_accept) < p_accept
             x[accept] = new_x[accept]
             logp[accept] = new_logp[accept]
+            if equilibration_energy:
+                self.E_eq.append([self.get_energy(orbitals_up, orbitals_down, x, pot_ee, pot_en)])
+
         return x
 
     def log_prob_multstates(self, states, state_indices_collection, x, method=2):

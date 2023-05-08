@@ -8,11 +8,16 @@ class Backflow(torch.nn.Module):
     particle number, and both xi_i and r_i are dim-dimensional vectors, dim being 
     the space dimension.
     """
-    def __init__(self, eta, mu=None):
+    def __init__(self, eta, mu=None, nuclear_positions=None):
         """ The argument eta must be an instance of torch.nn.Module. """
         super(Backflow, self).__init__()
         self.eta = eta
         self.mu = mu
+        # if self.mu is not None and nuclear_positions is None:
+        #     print("Warning: Backflow potential mu is provided, but nuclear positions are not",\
+        #           "revert to default: single nucleus at origin")
+        #     nuclear_positions = [[0,0,0]]
+        # self.nucl_pos = torch.Tensor(nuclear_positions)
 
     def _e_e(self, x):
         """
@@ -60,8 +65,12 @@ class Backflow(torch.nn.Module):
             xi^{e-n}_i = mu(|r_i|) * r_i.
         where mu is any UNIVARIATE, SCALAR-VALUED function, possibly with some parameters. 
         """
-        di = x.norm(dim=-1, keepdim=True)
-        return self.mu(di) * x
+        _, n, dim = x.shape
+
+        rij = x[:,:,None]-self.nucl_pos[None,None,:]
+        dij = rij.norm(dim=-1,keepdim=True)
+        output = (self.mu(dij) * rij).sum(dim=-2)
+        return output
 
     def _e_n_divergence(self, x):
         """
@@ -73,11 +82,13 @@ class Backflow(torch.nn.Module):
         where mu^prime denotes the derivative of the function mu, n is the total
         particle number, and dim is the space dimension.
         """
-        dim = x.shape[-1]
+        _, n, dim = x.shape
+        row_indices, col_indices = torch.triu_indices(n, n, offset=-n)
 
-        di = x.norm(dim=-1, keepdim=True)
-        mu, d_mu = self.mu(di), self.mu.grad(di)
-        div_e_n = ( d_mu * di + dim * mu ).sum(dim=(-2, -1))
+        rij = x[:,:,None]-self.nucl_pos[None,None,:]
+        dij = rij.norm(dim=-1, keepdim=True)[:, row_indices, col_indices, :]
+        mu, d_mu = self.mu(dij), self.mu.grad(dij)
+        div_e_n = ( d_mu * dij + dim * mu ).sum(dim=(-2, -1))
         return div_e_n
 
     def forward(self, x):

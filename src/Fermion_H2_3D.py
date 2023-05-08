@@ -1,14 +1,14 @@
 import torch
 torch.set_default_dtype(torch.float64)
 
-from orbitals import HO2D, Orbitals
+from orbitals import HO2D, Orbitals, qmctorch_orbitals
 from base_dist import FreeFermion
 
 from MLP import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
-from potentials import HO, qmctorch_pot, CoulombPairPotential
+from potentials import HO, qmctorch_potential, CoulombPairPotential
 from VMC import GSVMC
 
 from qmctorch.scf import Molecule
@@ -49,9 +49,9 @@ if __name__ == "__main__":
     parser.add_argument("--iternum", type=int, default=10, help="number of new iterations")
     parser.add_argument("--batch", type=int, default=80, help="batch size")
 
-    parser.add_argument("--viz_flow", action="store_true", help="Visualize samples through final flow")
-    parser.add_argument("--viz_opt", action="store_true", help="Visualize optimization of flow through density")
-    parser.add_argument("--viz_bf", action="store_true", help="Visualize optimization of flow through backflow")
+    parser.add_argument("--viz_flow", action="store_true", help="Visualize changing density in final flow")
+    parser.add_argument("--viz_opt", action="store_true", help="Visualize final density in changing flow")
+    parser.add_argument("--viz_bf", action="store_true", help="Visualize optimization of backflow potentials")
     parser.add_argument('--results_dir', type=str, default="./results")
     
     args = parser.parse_args()
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     mol = Molecule(atom='H 0 0 -0.69; H 0 0 0.69', calculator='pyscf', basis='sto-3g', unit='bohr')
     wf = SlaterJastrow(mol)
 
-    orbitals = Orbitals()
+    orbitals = qmctorch_orbitals()
     orbitals.orbitals = [one_orbital(i) for i in range(wf.nmo_opt)]  
     basedist = FreeFermion(device=device)
 
@@ -75,13 +75,13 @@ if __name__ == "__main__":
         mu.init_zeros()
     else:
         mu = None
-    v = Backflow(eta, mu=mu)
+    v = Backflow(eta, mu=mu, nuclear_positions=mol.atom_coords)
 
     # Build model and initialize optimizer
     t_span = (args.t0, args.t1)
     cnf = CNF(v, t_span)
 
-    sp_potential = qmctorch_pot(wf.nuclear_potential)
+    sp_potential = qmctorch_potential(wf.nuclear_potential)
     pair_potential = CoulombPairPotential(args.Z)
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
@@ -96,9 +96,12 @@ if __name__ == "__main__":
 
     # for backflow visualization
     if args.viz_bf:
-        r_bf = torch.linspace(0,5,100)[:,None]
-        eta_r = model.cnf.v_wrapper.v.eta(r_bf) 
+        r_bf = torch.linspace(0,10,100)[:,None]
+        eta_r = model.cnf.v_wrapper.v.eta(r_bf)
+        if not args.nomu:
+            mu_r = model.cnf.v_wrapper.v.mu(r_bf) 
     
+    # Optimization
     import time
     for i in range(1, args.iternum + 1):
         start = time.time()
@@ -114,31 +117,52 @@ if __name__ == "__main__":
         
         if args.viz_bf:
             eta_r = torch.cat((eta_r,model.cnf.v_wrapper.v.eta(r_bf)),1)
+            if not args.nomu:
+                mu_r = torch.cat((mu_r,model.cnf.v_wrapper.v.mu(r_bf)),1)
 
-    # Visualization of two-body backflow potential evolution   
+    # Visualization of backflow potential evolution   
     if args.viz_bf:
-        print('Start vizualisation of evolution of two-body backflow potential')
+        print('Start vizualisation of evolution of backflow potentials')
         if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
-        plot_max=torch.max(eta_r).item()
-        plot_min=torch.min(eta_r).item()
+
+        plot_max_eta, plot_min_eta = torch.max(eta_r).item(), torch.min(eta_r).item()
+        plot_max_mu = plot_min_mu = 0
+        if not args.nomu:
+            plot_max_mu, plot_min_mu = torch.max(mu_r).item(), torch.min(mu_r).item()
+        plot_max = np.max([plot_max_eta,plot_max_mu])
+        plot_min = np.min([plot_min_eta,plot_min_mu])
         eta_r = torch.transpose(eta_r,0,1)
-        for i, n_r in zip(
+        mu_r = eta_r
+        if not args.nomu:
+            mu_r = torch.transpose(mu_r,0,1)
+
+        for i, n_r, m_r in zip(
                     np.arange(0, args.iternum+1, 1),
-                    eta_r
+                    eta_r, mu_r
             ):
                 print('Create plot for step', i, 'out of', args.iternum)
                 fig = plt.figure(figsize=(12, 8), dpi=200)
+                plt.suptitle(f'iter={i:04d}')
                 plt.tight_layout()
 
-                ax1 = fig.add_subplot(111)
-                ax1.set_title(f'iter={i:04d}')
-                ax1.set_xlim(0, 5)
+                ax1 = fig.add_subplot(121)
+                ax1.set_title('electron-electron')
+                ax1.set_xlim(0, 10)
                 ax1.set_ylim(plot_min, plot_max)
                 ax1.set_xlabel('$r$')
                 ax1.set_ylabel(u'\u03B7($r$)')
                 
                 ax1.plot(r_bf.detach().cpu().numpy(), n_r.detach().cpu().numpy())
+
+                ax2 = fig.add_subplot(122)
+                ax2.set_title('electron-nucleus')
+                ax2.set_xlim(0, 10)
+                ax2.set_ylim(plot_min, plot_max)
+                ax2.set_xlabel('$r$')
+                ax2.set_ylabel(u'\u03BC($r$)')
+                
+                ax2.plot(r_bf.detach().cpu().numpy(), m_r.detach().cpu().numpy())
 
                 plt.savefig(os.path.join(args.results_dir, f"h2-backflow-viz-{int(i):04d}.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
@@ -149,19 +173,19 @@ if __name__ == "__main__":
         img.save(fp=os.path.join(args.results_dir, "h2-backflow-viz.gif"), format='GIF', append_images=imgs,
                      save_all=True, duration=250, loop=0)
         
-        print('Remove plots used in GIF')
-        for i in range(0,args.iternum+1,1):
-            try:
-                os.remove(os.path.join(args.results_dir, f"h2-backflow-viz-{int(i):04d}.jpg"))
-            except FileNotFoundError:
-                print("Picture to be removed after used in GIF cannot be found. Filename is:")
-                print(f"h2-backflow-viz-{int(i):04d}.jpg")
+        # print('Remove plots used in GIF')
+        # for i in range(0,args.iternum+1,1):
+        #     try:
+        #         os.remove(os.path.join(args.results_dir, f"h2-backflow-viz-{int(i):04d}.jpg"))
+        #     except FileNotFoundError:
+        #         print("Picture to be removed after used in GIF cannot be found. Filename is:")
+        #         print(f"h2-backflow-viz-{int(i):04d}.jpg")
             
     # Visualization of flow evolution
     # Visualization of samples in final flow
     if args.viz_flow:
-        viz_timesteps = 41
-        viz_samples = 8000
+        viz_timesteps = 21
+        viz_samples = 5000
 
         print('Start vizualisation of evolution of', viz_samples, 'samples in', viz_timesteps, 'timesteps')
         
@@ -185,12 +209,12 @@ if __name__ == "__main__":
             q_y = np.linspace(-1.5, 1.5, res)
             q_z = np.linspace(-1.5, 1.5, res)
             points = np.vstack(np.meshgrid(q_x, q_y, q_z)).reshape([3, -1]).T
-            points = np.expand_dims(points, axis=1)
+            points = points[:,None]
 
-            q_density = torch.tensor(points).to(device)
-            logp_diff = torch.zeros(q_density.shape[0], 1).to(device)
+            q_base_density = torch.tensor(points).to(device)
+            logp_diff = torch.zeros(q_base_density.shape[0], 1).to(device)
  
-            q_t_density = model.cnf.generate(q_density, nframes=viz_timesteps)
+            q_t_density = model.cnf.generate(q_base_density, nframes=viz_timesteps)
             
             # q_t_(samples/density) of shape (viz_timesteps, ...), so each time step
             #   should be projected on plane (sum over 1 of the 3 remaining axes).
@@ -240,17 +264,12 @@ if __name__ == "__main__":
                 ax6.get_xaxis().set_ticks([])
                 ax6.get_yaxis().set_ticks([])
                 
-                # Calculate density at time t and projections on each plane
-                logq = model.basedist.log_prob(model.orbitals_up, model.orbitals_down, q_density)
-                
+                # Calculate density at time t and projections on each plane                
                 model.cnf.t_span_reverse = t, args.t0
                 if not t>args.t0:
-                    logp_diff = torch.zeros_like(logq)
+                    logp = model.basedist.log_prob(model.orbitals_up, model.orbitals_down, q_density)
                 else:
-                    _, logp_diff = model.cnf.delta_logp(q_density)
-                    logp_diff = logp_diff.view(-1)
-
-                logp = logq - logp_diff
+                    logp = model.logp(q_density)
                 
                 p = np.exp(logp.detach().cpu().numpy())
                 pXZ = np.array([p[i::res**2].sum() for i in range(res**2)])                     # project on xz (sum over y)

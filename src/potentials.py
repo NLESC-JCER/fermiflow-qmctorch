@@ -13,9 +13,9 @@ class HO(SPPotential):
     def V(self, x):
         return 0.5 * (x**2).sum(dim=(-2, -1))
     
-class qmctorch_pot(SPPotential):
+class qmctorch_potential(SPPotential):
     def __init__(self, nuclear_potential):
-        super(SPPotential, self).__init__()
+        super(qmctorch_potential, self).__init__()
         self.nuclear_potential = nuclear_potential
 
     def V(self, x):

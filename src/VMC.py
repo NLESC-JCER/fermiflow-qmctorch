@@ -26,9 +26,15 @@ class GSVMC(torch.nn.Module):
 
         self.pair_potential = pair_potential
         self.sp_potential = sp_potential
+        self.equilibration_energy = False
+        self.equilibrium_steps = 100
+        self.tau = 0.1
 
     def sample(self, sample_shape):
-        z = self.basedist.sample(self.orbitals_up, self.orbitals_down, sample_shape)
+        z = self.basedist.sample(self.orbitals_up, self.orbitals_down, sample_shape,\
+                                    self.equilibrium_steps, self.tau,\
+                                    equilibration_energy=self.equilibration_energy,\
+                                    pot_ee=self.pair_potential, pot_en=self.sp_potential)
         x = self.cnf.generate(z)
         return z, x
 
