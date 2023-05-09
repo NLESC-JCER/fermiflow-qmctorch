@@ -13,11 +13,11 @@ class Backflow(torch.nn.Module):
         super(Backflow, self).__init__()
         self.eta = eta
         self.mu = mu
-        # if self.mu is not None and nuclear_positions is None:
-        #     print("Warning: Backflow potential mu is provided, but nuclear positions are not",\
-        #           "revert to default: single nucleus at origin")
-        #     nuclear_positions = [[0,0,0]]
-        # self.nucl_pos = torch.Tensor(nuclear_positions)
+        if self.mu is not None and nuclear_positions is None:
+            print("Warning: Backflow potential mu is provided, but nuclear positions are not",\
+                  "revert to default: single nucleus at origin")
+            nuclear_positions = [[0,0,0]]
+        self.nucl_pos = torch.Tensor(nuclear_positions)
 
     def _e_e(self, x):
         """

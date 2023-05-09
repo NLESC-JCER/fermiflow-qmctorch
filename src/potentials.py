@@ -13,9 +13,9 @@ class HO(SPPotential):
     def V(self, x):
         return 0.5 * (x**2).sum(dim=(-2, -1))
     
-class qmctorch_potential(SPPotential):
+class qmctorch_en_potential(SPPotential):
     def __init__(self, nuclear_potential):
-        super(qmctorch_potential, self).__init__()
+        super(qmctorch_en_potential, self).__init__()
         self.nuclear_potential = nuclear_potential
 
     def V(self, x):
@@ -26,6 +26,20 @@ class qmctorch_potential(SPPotential):
         v_en = self.nuclear_potential(x)
         # N.B. output nuclear_potential already shape (Nbatch,1)
         return v_en.squeeze()
+
+class qmctorch_nn_potential(SPPotential):
+    def __init__(self, mol):
+        super(qmctorch_nn_potential, self).__init__()
+        # For fixed geometry, compute term once
+        self.natom = mol.natom
+        self.coords = torch.Tensor(mol.atom_coords)
+        self.charge = torch.Tensor(mol.atomic_number)
+        self.dij = (self.coords[:,None]-self.coords[None]).norm(dim=-1)
+        self.ZZ = self.charge.view(-1,1)@self.charge.view(1,-1)
+        self.V = 0
+        for i in range(self.natom):
+            for j in range(i+1, self.natom):
+                self.V += self.ZZ[i,j].item()/self.dij[i,j].item()
 
 # ==================================================================================
 

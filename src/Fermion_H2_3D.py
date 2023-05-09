@@ -8,7 +8,7 @@ from MLP import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
-from potentials import HO, qmctorch_potential, CoulombPairPotential
+from potentials import qmctorch_en_potential, qmctorch_nn_potential, CoulombPairPotential
 from VMC import GSVMC
 
 from qmctorch.scf import Molecule
@@ -81,11 +81,12 @@ if __name__ == "__main__":
     t_span = (args.t0, args.t1)
     cnf = CNF(v, t_span)
 
-    sp_potential = qmctorch_potential(wf.nuclear_potential)
-    pair_potential = CoulombPairPotential(args.Z)
+    pair_potential = CoulombPairPotential(args.Z)               # e-e potential with strength Z
+    sp_potential = qmctorch_en_potential(wf.nuclear_potential)  # e-n potential
+    nucl_potential = qmctorch_nn_potential(wf.mol)              # n-n potential
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
-                    pair_potential, sp_potential=sp_potential)
+                    pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)

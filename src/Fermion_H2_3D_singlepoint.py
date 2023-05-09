@@ -8,7 +8,7 @@ from MLP import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
-from potentials import HO, qmctorch_potential, CoulombPairPotential
+from potentials import qmctorch_nn_potential, qmctorch_en_potential, CoulombPairPotential
 from VMC import GSVMC
 
 from qmctorch.scf import Molecule
@@ -81,11 +81,12 @@ if __name__ == "__main__":
     t_span = (args.t0, args.t1)
     cnf = CNF(v, t_span)
 
-    sp_potential = qmctorch_potential(wf.nuclear_potential)
-    pair_potential = CoulombPairPotential(args.Z)
+    pair_potential = CoulombPairPotential(args.Z)               # e-e potential with strength Z
+    sp_potential = qmctorch_en_potential(wf.nuclear_potential)  # e-n potential
+    nucl_potential = qmctorch_nn_potential(wf.mol)              # n-n potential
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
-                    pair_potential, sp_potential=sp_potential)
+                    pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
     model.to(device=device)
 
     # Print some info
@@ -100,8 +101,8 @@ if __name__ == "__main__":
 
     # Test equilibration time and stepsize
     model.equilibration_energy = True
-    eq_steps = np.arange(2,5)
-    eq_tau = np.arange(0.02, 0.06, 0.02)
+    eq_steps = np.arange(1.5,4,0.5)
+    eq_tau = np.arange(0.01, 0.05, 0.01)
     sp_mean_energy = np.ndarray((len(eq_steps),len(eq_tau)))
     sp_std_energy = np.ndarray((len(eq_steps),len(eq_tau)))
     for i, eq_s in enumerate(eq_steps):
@@ -127,8 +128,12 @@ if __name__ == "__main__":
     fig2.suptitle('Mean energy after equilibration')
     ax2_steps.set_title('vs. number of steps')
     ax2_tau.set_title('vs. step size')
-    ax2_steps.plot(eq_steps, sp_mean_energy[:,0])
-    ax2_tau.plot(eq_tau, sp_mean_energy[-1,:])
+    for i in range(np.shape(sp_mean_energy)[1]):
+        ax2_steps.plot(eq_steps, sp_mean_energy[:,i], label=str(np.round(eq_tau[i],3)))
+    for i in range(np.shape(sp_mean_energy)[0]):
+        ax2_tau.plot(eq_tau, sp_mean_energy[i,:], label=str(np.round(eq_steps[i],1)))
+    ax2_steps.legend()
+    ax2_tau.legend()
     plt.savefig(os.path.join(args.results_dir, f"energy_after_equilibration.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
     plt.close()

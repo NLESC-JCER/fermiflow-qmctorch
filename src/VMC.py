@@ -3,7 +3,7 @@ torch.set_default_dtype(torch.float64)
 
 class GSVMC(torch.nn.Module):
     def __init__(self, nup, ndown, orbitals, basedist, cnf, 
-                    pair_potential, sp_potential=None):
+                    pair_potential, sp_potential=None, nucl_potential=None):
         """
             Ground State Variational Monte Carlo calculation.
 
@@ -26,6 +26,7 @@ class GSVMC(torch.nn.Module):
 
         self.pair_potential = pair_potential
         self.sp_potential = sp_potential
+        self.nucl_potential = nucl_potential
         self.equilibration_energy = False
         self.equilibrium_steps = 100
         self.tau = 0.1
@@ -34,7 +35,8 @@ class GSVMC(torch.nn.Module):
         z = self.basedist.sample(self.orbitals_up, self.orbitals_down, sample_shape,\
                                     self.equilibrium_steps, self.tau,\
                                     equilibration_energy=self.equilibration_energy,\
-                                    pot_ee=self.pair_potential, pot_en=self.sp_potential)
+                                    pot_ee=self.pair_potential, pot_en=self.sp_potential,\
+                                    pot_nn=self.nucl_potential)
         x = self.cnf.generate(z)
         return z, x
 
@@ -57,6 +59,8 @@ class GSVMC(torch.nn.Module):
         potential = self.pair_potential.V(x)
         if self.sp_potential:
             potential += self.sp_potential.V(x)
+        if self.nucl_potential:
+            potential += self.nucl_potential.V
 
         Eloc = (kinetic + potential).detach()
 

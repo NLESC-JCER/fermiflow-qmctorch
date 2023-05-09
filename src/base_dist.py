@@ -56,7 +56,7 @@ class FreeFermion(BaseDist):
         logp = 2 * logabspsi
         return logp
 
-    def get_energy(self, orbitals_up, orbitals_down, x, pot_ee, pot_en):
+    def get_energy(self, orbitals_up, orbitals_down, x, pot_ee, pot_en, pot_nn):
         x.requires_grad_(True)
         f = lambda x: self.log_prob(orbitals_up, orbitals_down, x)
         logp, grad_logp, laplacian_logp = y_grad_laplacian(f, x) 
@@ -65,6 +65,8 @@ class FreeFermion(BaseDist):
         potential = pot_ee.V(x)
         if pot_en:
             potential += pot_en.V(x)
+        if pot_nn:
+            potential += pot_nn.V
 
         x.requires_grad_(False)
 
@@ -73,14 +75,14 @@ class FreeFermion(BaseDist):
         return E, E_std
     
     def sample(self, orbitals_up, orbitals_down, sample_shape, 
-            equilibrim_steps=100, tau=0.1, equilibration_energy=False, pot_ee=None, pot_en=None):
+            equilibrim_steps=100, tau=0.1, equilibration_energy=False, pot_ee=None, pot_en=None, pot_nn=None):
         #print("Sample a Slater determinant...")
         nup, ndown = len(orbitals_up), len(orbitals_down)
         x = torch.randn(*sample_shape, nup + ndown, 3, device=self.device)
         logp = self.log_prob(orbitals_up, orbitals_down, x)
         self.E_eq = None
         if equilibration_energy:
-            self.E_eq = [[self.get_energy(orbitals_up, orbitals_down, x, pot_ee, pot_en)]]
+            self.E_eq = [[self.get_energy(orbitals_up, orbitals_down, x, pot_ee, pot_en, pot_nn)]]
         
         for _ in range(equilibrim_steps):
             new_x = x + tau * torch.randn_like(x)
@@ -90,7 +92,7 @@ class FreeFermion(BaseDist):
             x[accept] = new_x[accept]
             logp[accept] = new_logp[accept]
             if equilibration_energy:
-                self.E_eq.append([self.get_energy(orbitals_up, orbitals_down, x, pot_ee, pot_en)])
+                self.E_eq.append([self.get_energy(orbitals_up, orbitals_down, x, pot_ee, pot_en, pot_nn)])
 
         return x
 
