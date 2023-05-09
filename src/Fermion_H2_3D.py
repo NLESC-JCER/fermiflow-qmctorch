@@ -46,8 +46,8 @@ if __name__ == "__main__":
     parser.add_argument("--t0", type=float, default=0.0, help="starting time")
     parser.add_argument("--t1", type=float, default=1.0, help="ending time")
 
-    parser.add_argument("--iternum", type=int, default=10, help="number of new iterations")
-    parser.add_argument("--batch", type=int, default=80, help="batch size")
+    parser.add_argument("--iternum", type=int, default=100, help="number of new iterations")
+    parser.add_argument("--batch", type=int, default=800, help="batch size")
 
     parser.add_argument("--viz_flow", action="store_true", help="Visualize changing density in final flow")
     parser.add_argument("--viz_opt", action="store_true", help="Visualize final density in changing flow")
@@ -87,6 +87,8 @@ if __name__ == "__main__":
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
                     pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
+    model.equilibrium_steps = 1000
+    model.tau = 0.01
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
@@ -104,6 +106,8 @@ if __name__ == "__main__":
     
     # Optimization
     import time
+    mean_E = np.ndarray((args.iternum,))
+    std_E = np.ndarray((args.iternum,))
     for i in range(1, args.iternum + 1):
         start = time.time()
 
@@ -116,11 +120,35 @@ if __name__ == "__main__":
         print("iter: %03d" % i, "E:", model.E, "E_std:", model.E_std, 
                 "Instant speed (hours per 100 iters):", speed)
         
+        mean_E[i-1], std_E[i-1] = model.E, model.E_std
+
         if args.viz_bf:
             eta_r = torch.cat((eta_r,model.cnf.v_wrapper.v.eta(r_bf)),1)
             if not args.nomu:
                 mu_r = torch.cat((mu_r,model.cnf.v_wrapper.v.mu(r_bf)),1)
 
+    if not os.path.exists(args.results_dir):
+            os.makedirs(args.results_dir)
+            
+    fig = plt.figure(figsize=(12, 8), dpi=200)
+    plt.tight_layout()
+
+    ax1 = fig.add_subplot(111)
+    ax1.set_xlim(1, args.iternum+1)
+    ax1.set_xlabel('iteration')
+    ax1.set_ylabel(u'energy')
+                
+    ax1.fill_between(np.arange(1, args.iternum + 1), mean_E + std_E, mean_E - std_E, alpha = 0.2, color = 'C0', zorder = 1)
+    ax1.plot(np.arange(1, args.iternum + 1), mean_E - std_E, color = 'tab:blue', zorder = 2)
+    ax1.plot(np.arange(1, args.iternum + 1), mean_E + std_E, color = 'tab:blue', zorder = 3)
+    ax1.plot(np.arange(1, args.iternum + 1), mean_E, color = 'r', zorder = 4)
+
+    ax1.hlines([-1.16], xmin=1, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
+
+    plt.savefig(os.path.join(args.results_dir, f"h2-energy-iterations.jpg"),
+                           pad_inches=0.2, bbox_inches='tight')
+    plt.close()
+    
     # Visualization of backflow potential evolution   
     if args.viz_bf:
         print('Start vizualisation of evolution of backflow potentials')
