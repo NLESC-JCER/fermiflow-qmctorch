@@ -107,13 +107,13 @@ if __name__ == "__main__":
     sp_std_energy = np.ndarray((len(eq_steps),len(eq_tau)))
     for i, eq_s in enumerate(eq_steps):
         for j, eq_t in enumerate(eq_tau):
-            model.equilibrium_steps = 10**eq_s
+            model.equilibrium_steps = int(10**eq_s)
             model.tau = eq_t 
             gradE = model(args.batch)
             sp_mean_energy[i,j] = model.E
             sp_std_energy[i,j] = model.E_std
             E_vs_eq, Estd_vs_eq = np.squeeze(model.basedist.E_eq).T
-            eq_step = np.log10(np.arange(1,10**eq_s+2))
+            eq_step = np.log10(np.arange(1,model.equilibrium_steps+2))
             if j == 0:
                 ax1_m.plot(eq_step, E_vs_eq, zorder=np.max(eq_steps)-i)
                 ax1_v.plot(eq_step, Estd_vs_eq, zorder=np.max(eq_steps)-i)
