@@ -47,10 +47,10 @@ if __name__ == "__main__":
     parser.add_argument("--t1", type=float, default=1.0, help="ending time")
 
     parser.add_argument("--iternum", type=int, default=100, help="number of new iterations")
-    parser.add_argument("--batch", type=int, default=800, help="batch size")
+    parser.add_argument("--return_last", type=float, default=0.1, help="Fraction of iterations over which to compute average")
+    parser.add_argument("--batch", type=int, default=1000, help="batch size")
 
     parser.add_argument("--viz_flow", action="store_true", help="Visualize changing density in final flow")
-    parser.add_argument("--viz_opt", action="store_true", help="Visualize final density in changing flow")
     parser.add_argument("--viz_bf", action="store_true", help="Visualize optimization of backflow potentials")
     parser.add_argument('--results_dir', type=str, default="./results")
     
@@ -87,11 +87,12 @@ if __name__ == "__main__":
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
                     pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
-    model.equilibrium_steps = 1000
+    model.equilibrium_steps = 0 #1000
     model.tau = 0.01
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.80)
 
     # Print some info
     print("nup = %d, ndown = %d, Z = %.1f" % (args.nup, args.ndown, args.Z))
@@ -99,7 +100,7 @@ if __name__ == "__main__":
 
     # for backflow visualization
     if args.viz_bf:
-        r_bf = torch.linspace(0,10,100)[:,None]
+        r_bf = torch.linspace(0,20,200)[:,None]
         eta_r = model.cnf.v_wrapper.v.eta(r_bf)
         if not args.nomu:
             mu_r = model.cnf.v_wrapper.v.mu(r_bf) 
@@ -115,6 +116,7 @@ if __name__ == "__main__":
         optimizer.zero_grad()
         gradE.backward()
         optimizer.step()
+        scheduler.step()
 
         speed = (time.time() - start) * 100 / 3600
         print("iter: %03d" % i, "E:", model.E, "E_std:", model.E_std, 
@@ -129,21 +131,28 @@ if __name__ == "__main__":
 
     if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
-            
+
+    last_iter = np.max([int(args.iternum*args.return_last),1])    
+    average, std = np.average(mean_E[-last_iter:]), np.std(mean_E[-last_iter:])
+    collective_std = np.sqrt(np.sum(std_E[-last_iter:]**2)/last_iter)
+    var_E = std_E**2
+        
     fig = plt.figure(figsize=(12, 8), dpi=200)
     plt.tight_layout()
 
     ax1 = fig.add_subplot(111)
     ax1.set_xlim(1, args.iternum+1)
+    ax1.set_title("Average energy each iteration with indication of variance")
     ax1.set_xlabel('iteration')
     ax1.set_ylabel(u'energy')
+    ax1.grid()    
                 
-    ax1.fill_between(np.arange(1, args.iternum + 1), mean_E + std_E, mean_E - std_E, alpha = 0.2, color = 'C0', zorder = 1)
-    ax1.plot(np.arange(1, args.iternum + 1), mean_E - std_E, color = 'tab:blue', zorder = 2)
-    ax1.plot(np.arange(1, args.iternum + 1), mean_E + std_E, color = 'tab:blue', zorder = 3)
+    ax1.fill_between(np.arange(1, args.iternum + 1), mean_E + var_E, mean_E - var_E, alpha = 0.2, color = 'C0', zorder = 1)
+    ax1.plot(np.arange(1, args.iternum + 1), mean_E - var_E, color = 'tab:blue', zorder = 2)
+    ax1.plot(np.arange(1, args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
     ax1.plot(np.arange(1, args.iternum + 1), mean_E, color = 'r', zorder = 4)
 
-    ax1.hlines([-1.16], xmin=1, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
+    ax1.hlines([-1.1645], xmin=1, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
 
     plt.savefig(os.path.join(args.results_dir, f"h2-energy-iterations.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
@@ -162,9 +171,10 @@ if __name__ == "__main__":
         plot_max = np.max([plot_max_eta,plot_max_mu])
         plot_min = np.min([plot_min_eta,plot_min_mu])
         eta_r = torch.transpose(eta_r,0,1)
-        mu_r = eta_r
         if not args.nomu:
             mu_r = torch.transpose(mu_r,0,1)
+        else:
+            mu_r = torch.zeros_like(eta_r)
 
         for i, n_r, m_r in zip(
                     np.arange(0, args.iternum+1, 1),
@@ -177,19 +187,21 @@ if __name__ == "__main__":
 
                 ax1 = fig.add_subplot(121)
                 ax1.set_title('electron-electron')
-                ax1.set_xlim(0, 10)
+                ax1.set_xlim(0, 20)
                 ax1.set_ylim(plot_min, plot_max)
                 ax1.set_xlabel('$r$')
                 ax1.set_ylabel(u'\u03B7($r$)')
+                ax1.grid()
                 
                 ax1.plot(r_bf.detach().cpu().numpy(), n_r.detach().cpu().numpy())
 
                 ax2 = fig.add_subplot(122)
                 ax2.set_title('electron-nucleus')
-                ax2.set_xlim(0, 10)
+                ax2.set_xlim(0, 20)
                 ax2.set_ylim(plot_min, plot_max)
                 ax2.set_xlabel('$r$')
                 ax2.set_ylabel(u'\u03BC($r$)')
+                ax2.grid()
                 
                 ax2.plot(r_bf.detach().cpu().numpy(), m_r.detach().cpu().numpy())
 
@@ -202,15 +214,6 @@ if __name__ == "__main__":
         img.save(fp=os.path.join(args.results_dir, "h2-backflow-viz.gif"), format='GIF', append_images=imgs,
                      save_all=True, duration=250, loop=0)
         
-        # print('Remove plots used in GIF')
-        # for i in range(0,args.iternum+1,1):
-        #     try:
-        #         os.remove(os.path.join(args.results_dir, f"h2-backflow-viz-{int(i):04d}.jpg"))
-        #     except FileNotFoundError:
-        #         print("Picture to be removed after used in GIF cannot be found. Filename is:")
-        #         print(f"h2-backflow-viz-{int(i):04d}.jpg")
-            
-    # Visualization of flow evolution
     # Visualization of samples in final flow
     if args.viz_flow:
         viz_timesteps = 21
@@ -339,3 +342,6 @@ if __name__ == "__main__":
                      save_all=True, duration=250, loop=0)
 
         print('Saved visualization animation at {}'.format(os.path.join(args.results_dir, "h2-cnf-viz.gif")))
+    
+    print("Average energy of last", last_iter, "iterations: %.4f +/- %.4f" % (average, std))
+    print("Collective standard deviation: %.4f" % collective_std)
