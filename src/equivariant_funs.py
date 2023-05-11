@@ -91,6 +91,37 @@ class Backflow(torch.nn.Module):
         div_e_n = ( d_mu * dij + dim * mu ).sum(dim=(-2, -1))
         return div_e_n
 
+    def _e_n_old(self, x):
+        """
+            The one-body (i.e., mean-field) part xi^{e-n}_i of the backflow 
+        transformation, which takes cares of the interaction of one particle with
+        some "nuclei" positions in the system, possibly arising from the nuclei in 
+        a real molecule or harmonic trap in cold-atom systems, and so on.
+            For simplicity, it is assumed that there is only one nucleus position
+        at the origin. Then the transformation reads as follows:
+            xi^{e-n}_i = mu(|r_i|) * r_i.
+        where mu is any UNIVARIATE, SCALAR-VALUED function, possibly with some parameters. 
+        """
+        di = x.norm(dim=-1, keepdim=True)
+        return self.mu(di) * x
+
+    def _e_n_divergence_old(self, x):
+        """
+            The divergence of the one-body part xi^{e-n}_i of the transformation, 
+        which is derived and coded by hand to avoid the computational overhead in CNF. 
+        The result (for the simplified single-nucleus case) is:
+            div^{e-n} = \\sum_{i=1}^{n} ( mu^prime(|r_i|) * |r_i| 
+                                        + dim * mu(|r_i|) ).
+        where mu^prime denotes the derivative of the function mu, n is the total
+        particle number, and dim is the space dimension.
+        """
+        dim = x.shape[-1]
+
+        di = x.norm(dim=-1, keepdim=True)
+        mu, d_mu = self.mu(di), self.mu.grad(di)
+        div_e_n = ( d_mu * di + dim * mu ).sum(dim=(-2, -1))
+        return div_e_n
+    
     def forward(self, x):
         """
             The total backflow transformation xi_i, which contains the two-body part
