@@ -62,6 +62,8 @@ if __name__ == "__main__":
     # Define molecule, wavefunction, orbitals, nuclear potential
     mol = Molecule(atom='He 0 0 0', calculator='pyscf', basis='sto-3g', unit='bohr')
     wf = SlaterJastrow(mol)
+    pos = torch.randn((args.batch,2,3)).view(args.batch, -1)
+    e0 = wf.energy(pos)
 
     orbitals = qmctorch_orbitals()
     orbitals.orbitals = [one_orbital(i) for i in range(wf.nmo_opt)]  
@@ -109,9 +111,9 @@ if __name__ == "__main__":
     import time
     mean_E = np.ndarray((args.iternum+1,))
     std_E = np.ndarray((args.iternum+1,))
+    gradE = model(args.batch)
     mean_E[0], std_E[0] = model.E, model.E_std
-    for param in model.parameters():
-        print(type(param), param.size())
+
     for i in range(args.iternum + 1):
         start = time.time()
 
@@ -124,8 +126,7 @@ if __name__ == "__main__":
         speed = (time.time() - start) * 100 / 3600
         print("iter: %03d" % i, "E:", model.E, "E_std:", model.E_std, 
                 "Instant speed (hours per 100 iters):", speed)
-        
-        print(model.parameters())
+
         mean_E[i], std_E[i] = model.E, model.E_std
 
         if args.viz_bf:
@@ -135,6 +136,8 @@ if __name__ == "__main__":
 
     if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
+
+    e1 = wf.energy(pos)
 
     last_iter = np.max([int(args.iternum*args.return_last),1])    
     average, std = np.average(mean_E[-last_iter:]), np.std(mean_E[-last_iter:])
@@ -349,3 +352,4 @@ if __name__ == "__main__":
     
     print("Average energy of last", last_iter, "iterations: %.4f +/- %.4f" % (average, std))
     print("Collective standard deviation: %.4f" % collective_std)
+    print("QMCTorch wavefunction sampling gives %.4f at the start, %.4f at the end" % (e0, e1))
