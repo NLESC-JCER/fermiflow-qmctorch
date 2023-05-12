@@ -114,7 +114,7 @@ if __name__ == "__main__":
     gradE = model(args.batch)
     mean_E[0], std_E[0] = model.E, model.E_std
 
-    for i in range(args.iternum + 1):
+    for i in range(1, args.iternum + 1):
         start = time.time()
 
         gradE = model(args.batch)
