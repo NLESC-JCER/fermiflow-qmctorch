@@ -18,6 +18,7 @@ class Backflow(torch.nn.Module):
                   "revert to default: single nucleus at origin")
             nuclear_positions = [[0,0,0]]
         self.nucl_pos = torch.Tensor(nuclear_positions)
+        self.n_nucl, _ = self.nucl_pos.shape
 
     def _e_e(self, x):
         """
@@ -83,7 +84,7 @@ class Backflow(torch.nn.Module):
         particle number, and dim is the space dimension.
         """
         _, n, dim = x.shape
-        row_indices, col_indices = torch.triu_indices(n, n, offset=-n)
+        row_indices, col_indices = torch.triu_indices(n, self.n_nucl, offset=-n)
 
         rij = x[:,:,None]-self.nucl_pos[None,None,:]
         dij = rij.norm(dim=-1, keepdim=True)[:, row_indices, col_indices, :]

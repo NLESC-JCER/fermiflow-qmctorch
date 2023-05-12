@@ -141,7 +141,7 @@ if __name__ == "__main__":
     plt.tight_layout()
 
     ax1 = fig.add_subplot(111)
-    ax1.set_xlim(1, args.iternum+1)
+    ax1.set_xlim(0, args.iternum+1)
     ax1.set_title("Average energy each iteration with indication of variance")
     ax1.set_xlabel('iteration')
     ax1.set_ylabel(u'energy')
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     ax1.plot(np.arange(1, args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
     ax1.plot(np.arange(1, args.iternum + 1), mean_E, color = 'r', zorder = 4)
 
-    ax1.hlines([-1.1645], xmin=1, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
+    ax1.hlines([-2.9034], xmin=1, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
 
     plt.savefig(os.path.join(args.results_dir, f"he-energy-iterations.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
