@@ -62,6 +62,8 @@ if __name__ == "__main__":
     # Define molecule, wavefunction, orbitals, nuclear potential
     mol = Molecule(atom='H 0 0 -0.69; H 0 0 0.69', calculator='pyscf', basis='sto-3g', unit='bohr')
     wf = SlaterJastrow(mol)
+    pos = torch.randn((args.batch,2,3)).view(args.batch, -1)
+    print(wf.energy(pos))
 
     orbitals = qmctorch_orbitals()
     orbitals.orbitals = [one_orbital(i) for i in range(wf.nmo_opt)]  
@@ -107,9 +109,12 @@ if __name__ == "__main__":
     
     # Optimization
     import time
-    mean_E = np.ndarray((args.iternum,))
-    std_E = np.ndarray((args.iternum,))
-    for i in range(1, args.iternum + 1):
+    mean_E = np.ndarray((args.iternum+1,))
+    std_E = np.ndarray((args.iternum+1,))
+    mean_E[0], std_E[0] = model.E, model.E_std
+    for param in model.parameters():
+        print(type(param), param.size())
+    for i in range(args.iternum + 1):
         start = time.time()
 
         gradE = model(args.batch)
@@ -117,12 +122,13 @@ if __name__ == "__main__":
         gradE.backward()
         optimizer.step()
         scheduler.step()
-
+        
         speed = (time.time() - start) * 100 / 3600
         print("iter: %03d" % i, "E:", model.E, "E_std:", model.E_std, 
                 "Instant speed (hours per 100 iters):", speed)
         
-        mean_E[i-1], std_E[i-1] = model.E, model.E_std
+        print(model.parameters())
+        mean_E[i], std_E[i] = model.E, model.E_std
 
         if args.viz_bf:
             eta_r = torch.cat((eta_r,model.cnf.v_wrapper.v.eta(r_bf)),1)
@@ -141,18 +147,18 @@ if __name__ == "__main__":
     plt.tight_layout()
 
     ax1 = fig.add_subplot(111)
-    ax1.set_xlim(1, args.iternum+1)
+    ax1.set_xlim(0, args.iternum+1)
     ax1.set_title("Average energy each iteration with indication of variance")
     ax1.set_xlabel('iteration')
     ax1.set_ylabel(u'energy')
     ax1.grid()    
                 
-    ax1.fill_between(np.arange(1, args.iternum + 1), mean_E + var_E, mean_E - var_E, alpha = 0.2, color = 'C0', zorder = 1)
-    ax1.plot(np.arange(1, args.iternum + 1), mean_E - var_E, color = 'tab:blue', zorder = 2)
-    ax1.plot(np.arange(1, args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
-    ax1.plot(np.arange(1, args.iternum + 1), mean_E, color = 'r', zorder = 4)
+    ax1.fill_between(np.arange(args.iternum + 1), mean_E + var_E, mean_E - var_E, alpha = 0.2, color = 'C0', zorder = 1)
+    ax1.plot(np.arange(args.iternum + 1), mean_E - var_E, color = 'tab:blue', zorder = 2)
+    ax1.plot(np.arange(args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
+    ax1.plot(np.arange(args.iternum + 1), mean_E, color = 'r', zorder = 4)
 
-    ax1.hlines([-1.1645], xmin=1, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
+    ax1.hlines([-1.1645], xmin=0, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
 
     plt.savefig(os.path.join(args.results_dir, f"h2-energy-iterations.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
