@@ -78,7 +78,7 @@ class FreeFermion(BaseDist):
             equilibrim_steps=100, tau=0.1, equilibration_energy=False, pot_ee=None, pot_en=None, pot_nn=None):
         #print("Sample a Slater determinant...")
         nup, ndown = len(orbitals_up), len(orbitals_down)
-        x = torch.randn(*sample_shape, nup + ndown, 2, device=self.device)
+        x = torch.randn(*sample_shape, nup + ndown, 3, device=self.device)
         logp = self.log_prob(orbitals_up, orbitals_down, x)
         self.E_eq = None
         if equilibration_energy:

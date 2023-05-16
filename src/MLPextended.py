@@ -15,7 +15,7 @@ class MLP(torch.nn.Module):
                 [D_in, D_hidden_1, ..., D_hidden_N]
         """
         super(MLP, self).__init__()
-        self.layers = []
+        self.layers = torch.nn.ModuleList()
         self.layer_dims = layer_widths
         self.N_layers = len(layer_widths)-1
         

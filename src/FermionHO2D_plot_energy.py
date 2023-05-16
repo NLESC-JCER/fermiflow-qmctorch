@@ -32,6 +32,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--iternum", type=int, default=10, help="number of new iterations")
     parser.add_argument("--batch", type=int, default=8000, help="batch size")
+    parser.add_argument('--results_dir', type=str, default="./results")
     
     args = parser.parse_args()
 
@@ -89,8 +90,41 @@ if __name__ == "__main__":
 
     var_E = std_E**2
     it = np.arange(args.iternum+1)
-    np.savetxt('energy_variance.txt', np.vstack((it, mean_E,var_E)).T, fmt='%.4f', header='iteration - energy - variance')
+    np.savetxt('energy_variance_2.txt', np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
     
+    r_bf = torch.linspace(0,20,200)[:,None]
+    eta_r = model.cnf.v_wrapper.v.eta(r_bf)
+    if not args.nomu:
+        mu_r = model.cnf.v_wrapper.v.mu(r_bf)
+    else:
+        mu_r = torch.zeros_like(eta_r)
+
+    fig = plt.figure(figsize=(12, 8), dpi=200)
+    plt.tight_layout()
+
+    ax1 = fig.add_subplot(121)
+    ax1.set_title('electron-electron')
+    ax1.set_xlim(0, 20)
+    ax1.set_xlabel('$r$')
+    ax1.set_ylabel(u'\u03B7($r$)')
+    ax1.grid()
+                
+    ax1.plot(r_bf.detach().cpu().numpy(), eta_r.detach().cpu().numpy())
+
+    ax2 = fig.add_subplot(122, sharey = ax1)
+    ax2.set_title('electron-nucleus')
+    ax2.set_xlim(0, 20)
+    ax2.set_xlabel('$r$')
+    ax2.set_ylabel(u'\u03BC($r$)')
+    ax2.grid()
+                
+    ax2.plot(r_bf.detach().cpu().numpy(), mu_r.detach().cpu().numpy())
+
+    plt.savefig(os.path.join(args.results_dir, f"ho2d-backflow-viz.jpg"),
+                           pad_inches=0.2, bbox_inches='tight')
+    plt.close()
+
+    scale_var = 50
     fig = plt.figure(figsize=(12, 8), dpi=200)
     plt.tight_layout()
 
@@ -101,13 +135,13 @@ if __name__ == "__main__":
     ax1.set_ylabel('energy')
     ax1.grid()    
                 
-    ax1.fill_between(np.arange(args.iternum + 1), mean_E + var_E, mean_E - var_E, alpha = 0.2, color = 'C0', zorder = 1)
-    ax1.plot(np.arange(args.iternum + 1), mean_E - var_E, color = 'tab:blue', zorder = 2)
-    ax1.plot(np.arange(args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
+    ax1.fill_between(np.arange(args.iternum + 1), mean_E + var_E/scale_var, mean_E - var_E/scale_var, alpha = 0.2, color = 'C0', zorder = 1)
+    ax1.plot(np.arange(args.iternum + 1), mean_E - var_E/scale_var, color = 'tab:blue', zorder = 2)
+    ax1.plot(np.arange(args.iternum + 1), mean_E + var_E/scale_var, color = 'tab:blue', zorder = 3)
     ax1.plot(np.arange(args.iternum + 1), mean_E, color = 'r', zorder = 4)
 
-    ax1.hlines([-1.1645], xmin=-1, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
+    ax1.hlines([18.179], xmin=-1, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
 
-    plt.savefig(os.path.join(args.results_dir, f"ho2D-energy-iterations.jpg"),
+    plt.savefig(os.path.join(args.results_dir, f"ho2d-energy-iterations.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
     plt.close()

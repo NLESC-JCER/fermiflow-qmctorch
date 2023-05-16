@@ -4,7 +4,7 @@ torch.set_default_dtype(torch.float64)
 from orbitals import HO2D, Orbitals, qmctorch_orbitals
 from base_dist import FreeFermion
 
-from MLP import MLP
+from MLPextended import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
@@ -40,9 +40,7 @@ if __name__ == "__main__":
     parser.add_argument("--Z", type=float, default=1, help="Coulomb interaction strength")
 
     parser.add_argument("--cuda", type=int, default=0, help="GPU device number")
-    parser.add_argument("--Deta", type=int, default=50, help="hidden layer size in the MLP representation of two-body backflow potential eta")
     parser.add_argument("--nomu", action="store_true", help="do not use the one-body backflow potential mu")
-    parser.add_argument("--Dmu", type=int, default=50, help="hidden layer size in the MLP representation of one-body backflow potential mu")
     parser.add_argument("--t0", type=float, default=0.0, help="starting time")
     parser.add_argument("--t1", type=float, default=1.0, help="ending time")
 
@@ -70,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP(1, args.Deta)
+    eta = MLP([1, 25, 25])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP(1, args.Dmu)
+        mu = MLP([1, 25, 25])
         mu.init_zeros()
     else:
         mu = None
@@ -89,7 +87,7 @@ if __name__ == "__main__":
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
                     pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
-    model.equilibrium_steps = 100
+    model.equilibrium_steps = 0
     model.tau = 0.1
     model.to(device=device)
 
