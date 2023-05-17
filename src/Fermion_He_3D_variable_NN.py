@@ -109,9 +109,12 @@ if __name__ == "__main__":
     import time
     mean_E = np.ndarray((args.iternum+1,))
     std_E = np.ndarray((args.iternum+1,))
+    model.equilibration_energy = True
     gradE = model(args.batch)
+    
     mean_E[0], std_E[0] = model.E, model.E_std
-
+    equil_before_opt = np.squeeze(model.basedist.E_eq)
+    model.equilibration_energy = False
     for i in range(1, args.iternum + 1):
         start = time.time()
 
@@ -137,10 +140,19 @@ if __name__ == "__main__":
 
     e1 = wf.energy(pos)
 
+    model.equilibration_energy = True
+    gradE = model(args.batch)
+    equil_after_opt = np.squeeze(model.basedist.E_eq)
+    model.equilibration_energy = False
+
     last_iter = np.max([int(args.iternum*args.return_last),1])    
     average, std = np.average(mean_E[-last_iter:]), np.std(mean_E[-last_iter:])
     collective_std = np.sqrt(np.sum(std_E[-last_iter:]**2)/last_iter)
+    
     var_E = std_E**2
+    it = np.arange(args.iternum+1)
+    np.savetxt('energy_variance.txt', np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
+    np.savetxt('energy_equilibration.txt', np.hstack((equil_before_opt, equil_after_opt)), fmt='%.3f')
         
     fig = plt.figure(figsize=(12, 8), dpi=200)
     plt.tight_layout()
