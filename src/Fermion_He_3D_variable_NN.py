@@ -59,7 +59,7 @@ if __name__ == "__main__":
  
     # Define molecule, wavefunction, orbitals, nuclear potential
     mol = Molecule(atom='He 0 0 0', calculator='pyscf', basis='sto-3g', unit='bohr')
-    wf = SlaterJastrow(mol)
+    wf = SlaterJastrow(mol).gto2sto()
     pos = torch.randn((args.batch,2,3)).view(args.batch, -1)
     e0 = wf.energy(pos)
 
@@ -68,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP([1, 25, 25])
+    eta = MLP([1, 50])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP([1, 25, 25])
+        mu = MLP([1, 50])
         mu.init_zeros()
     else:
         mu = None
@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
                     pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
-    model.equilibrium_steps = 0
+    model.equilibrium_steps = 100
     model.tau = 0.1
     model.to(device=device)
 
