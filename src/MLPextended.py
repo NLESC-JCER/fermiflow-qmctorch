@@ -53,7 +53,25 @@ class MLP(torch.nn.Module):
             Note that this implementation of grad works for the general case
         where x has ANY batch dimension, i.e., x has shape (..., D_in).
         """
-        grad_x = self.layers[0].weight
+        # Start with gradient of output wrt values last layer
+        # Then with weights and activation of layer before that,
+        #   obtain gradient of output wrt layer before
+        # Repeat until end.
+        # Do one forward run and save values.
+        # x_N = layer_n(x_N-1)
+        # z_N = activation(x_N)
+        # Pseudo code:
+        """
+        z_N = activation(layer_N(x_N-1))
+        grad_layer = layer_N+1.weight * d_sigmoid(z_N)
+        for each layer except first (backward):
+            z_N-1 = activation(layer_N-1(x_N-2))
+            grad_layer = grad_layer.matmul(layer_N.weight * d_sigmoid(z_N-1))
+        grad_x = grad_layer.matmul(layer_1.weight)
+        return grad_x
+
+        """
+        print(grad_x.shape)
         for i in range(1, self.N_layers+1):
             x = self.activation(self.layers[i-1](x))
             grad_layer = self.layers[i].weight * self.d_sigmoid(x)

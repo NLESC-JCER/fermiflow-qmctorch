@@ -68,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP([1, 50])
+    eta = MLP([1, 25, 25])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP([1, 50])
+        mu = MLP([1, 25, 25])
         mu.init_zeros()
     else:
         mu = None
@@ -87,12 +87,12 @@ if __name__ == "__main__":
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
                     pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
-    model.equilibrium_steps = 100
-    model.tau = 0.1
+    model.equilibrium_steps = 1000
+    model.tau = 0.01
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
-    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.80)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
 
     # Print some info
     print("nup = %d, ndown = %d, Z = %.1f" % (args.nup, args.ndown, args.Z))
