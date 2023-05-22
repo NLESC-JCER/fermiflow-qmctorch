@@ -76,6 +76,16 @@ class MLP(torch.nn.Module):
             grad_total = grad_total@weight_1
 
         """
+        z = {}
+        for i in range(self.N_layers):
+            x = self.activation(self.layers[i](x))
+            z[i] = x[:,:,None]
+        grad_total = torch.eye(1)
+        for i in range(self.N_layers, 0, -1):
+            grad_n = self.layers[i].weight * self.d_sigmoid(z[i-1])
+            grad_total = grad_total.matmul(grad_n)
+        grad_x = grad_total.matmul(self.layers[0].weight)
+        """
         grad_x = self.layers[0].weight
         print(grad_x.shape)
         for i in range(1, self.N_layers+1):
@@ -85,5 +95,6 @@ class MLP(torch.nn.Module):
             print(self.layers[i].weight.shape)
             grad_layer = self.layers[i].weight * self.d_sigmoid(x)
             grad_x = grad_layer.matmul(grad_x)
+        """
         
-        return grad_x
+        return torch.squeeze(grad_x, dim=2)

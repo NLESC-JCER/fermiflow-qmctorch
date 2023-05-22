@@ -4,7 +4,7 @@ torch.set_default_dtype(torch.float64)
 from orbitals import HO2D, Orbitals, qmctorch_orbitals
 from base_dist import FreeFermion
 
-from MLP import MLP
+from MLPextended import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
@@ -68,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP(1, 50)
+    eta = MLP([1, 25, 25])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP(1, 50)
+        mu = MLP([1, 25, 25])
         mu.init_zeros()
     else:
         mu = None
@@ -140,11 +140,6 @@ if __name__ == "__main__":
 
     e1 = wf.energy(pos)
 
-    model.equilibration_energy = True
-    gradE = model(args.batch)
-    equil_after_opt = np.squeeze(model.basedist.E_eq)
-    model.equilibration_energy = False
-
     last_iter = np.max([int(args.iternum*args.return_last),1])    
     average, std = np.average(mean_E[-last_iter:]), np.std(mean_E[-last_iter:])
     collective_std = np.sqrt(np.sum(std_E[-last_iter:]**2)/last_iter)
@@ -152,13 +147,13 @@ if __name__ == "__main__":
     var_E = std_E**2
     it = np.arange(args.iternum+1)
     np.savetxt('energy_variance.txt', np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
-    np.savetxt('energy_equilibration.txt', np.hstack((equil_before_opt, equil_after_opt)), fmt='%.3f')
+    np.savetxt('energy_equilibration.txt', equil_before_opt, fmt='%.3f')
         
     fig = plt.figure(figsize=(12, 8), dpi=200)
     plt.tight_layout()
 
     ax1 = fig.add_subplot(111)
-    ax1.set_xlim(0, args.iternum+1)
+    ax1.set_xlim(0, args.iternum)
     ax1.set_title("Average energy each iteration with indication of variance")
     ax1.set_xlabel('iteration')
     ax1.set_ylabel(u'energy')
