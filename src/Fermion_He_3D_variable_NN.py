@@ -87,8 +87,8 @@ if __name__ == "__main__":
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
                     pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
-    model.equilibrium_steps = 1000
-    model.tau = 0.01
+    model.equilibrium_steps = 500
+    model.tau = 0.1
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
