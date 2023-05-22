@@ -62,18 +62,28 @@ class MLP(torch.nn.Module):
         # z_N = activation(x_N)
         # Pseudo code:
         """
-        z_N = activation(layer_N(x_N-1))
-        grad_layer = layer_N+1.weight * d_sigmoid(z_N)
-        for each layer except first (backward):
-            z_N-1 = activation(layer_N-1(x_N-2))
-            grad_layer = grad_layer.matmul(layer_N.weight * d_sigmoid(z_N-1))
-        grad_x = grad_layer.matmul(layer_1.weight)
-        return grad_x
+        # Calculate all outputs of layers:
+            [z_1, z_2, ..., z_N] 
+                where   z_i = sigmoid(x_i)
+                and     x_i = z_(i-1) @ weight_i + bias_i
+        # Go backward, calculate jacobian of layer n, matmul with jacobian of layers n+1...N for
+        # jacobian of layers n...N
+            grad_total = identity of appropiate size
+            for each n from N-1 to 1:
+                grad_n = weight_N+1 * d_sigmoid(z_n)
+                grad_total = grad_total@grad_n
+        # Finish by matmul with weights of layer 1
+            grad_total = grad_total@weight_1
 
         """
+        grad_x = self.layers[0].weight
         print(grad_x.shape)
         for i in range(1, self.N_layers+1):
             x = self.activation(self.layers[i-1](x))
+            print(x.shape)
+            print(self.d_sigmoid(x).shape)
+            print(self.layers[i].weight.shape)
             grad_layer = self.layers[i].weight * self.d_sigmoid(x)
             grad_x = grad_layer.matmul(grad_x)
+        
         return grad_x

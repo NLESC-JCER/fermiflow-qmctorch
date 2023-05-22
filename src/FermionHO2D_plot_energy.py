@@ -4,7 +4,7 @@ torch.set_default_dtype(torch.float64)
 from orbitals import HO2D
 from base_dist import FreeFermion
 
-from MLP import MLP
+from MLPextended import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
@@ -42,10 +42,10 @@ if __name__ == "__main__":
     orbitals = HO2D()
     basedist = FreeFermion(device=device)
 
-    eta = MLP(1, args.Deta)
+    eta = MLP([1, 25, 25])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP(1, args.Dmu)
+        mu = MLP([1, 25, 25])
         mu.init_zeros()
     else:
         mu = None

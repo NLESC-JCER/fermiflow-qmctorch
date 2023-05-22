@@ -4,7 +4,7 @@ torch.set_default_dtype(torch.float64)
 from orbitals import HO2D, Orbitals, qmctorch_orbitals
 from base_dist import FreeFermion
 
-from MLPextended import MLP
+from MLP import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
@@ -68,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP([1, 25, 25])
+    eta = MLP(1, 50)
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP([1, 25, 25])
+        mu = MLP(1, 50)
         mu.init_zeros()
     else:
         mu = None
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
 
     # Print some info
     print("nup = %d, ndown = %d, Z = %.1f" % (args.nup, args.ndown, args.Z))
