@@ -68,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP([1, 25, 25])
+    eta = MLP([1, 15, 5])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP([1, 25, 25])
+        mu = MLP([1, 15, 5])
         mu.init_zeros()
     else:
         mu = None
@@ -146,8 +146,8 @@ if __name__ == "__main__":
     
     var_E = std_E**2
     it = np.arange(args.iternum+1)
-    np.savetxt('energy_variance.txt', np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
-    np.savetxt('energy_equilibration.txt', equil_before_opt, fmt='%.3f')
+    np.savetxt(os.path.join(args.results_dir, f"energy_variance.txt"), np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
+    np.savetxt(os.path.join(args.results_dir, f"energy_equilibration.txt"), equil_before_opt, fmt='%.3f')
         
     fig = plt.figure(figsize=(12, 8), dpi=200)
     plt.tight_layout()

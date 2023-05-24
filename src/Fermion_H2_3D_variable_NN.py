@@ -4,7 +4,7 @@ torch.set_default_dtype(torch.float64)
 from orbitals import HO2D, Orbitals, qmctorch_orbitals
 from base_dist import FreeFermion
 
-from MLP import MLP
+from MLPextended import MLP
 from equivariant_funs import Backflow
 from flow import CNF
 
@@ -40,9 +40,7 @@ if __name__ == "__main__":
     parser.add_argument("--Z", type=float, default=1, help="Coulomb interaction strength")
 
     parser.add_argument("--cuda", type=int, default=0, help="GPU device number")
-    parser.add_argument("--Deta", type=int, default=50, help="hidden layer size in the MLP representation of two-body backflow potential eta")
     parser.add_argument("--nomu", action="store_true", help="do not use the one-body backflow potential mu")
-    parser.add_argument("--Dmu", type=int, default=50, help="hidden layer size in the MLP representation of one-body backflow potential mu")
     parser.add_argument("--t0", type=float, default=0.0, help="starting time")
     parser.add_argument("--t1", type=float, default=1.0, help="ending time")
 
@@ -61,7 +59,7 @@ if __name__ == "__main__":
  
     # Define molecule, wavefunction, orbitals, nuclear potential
     mol = Molecule(atom='H 0 0 -0.69; H 0 0 0.69', calculator='pyscf', basis='sto-3g', unit='bohr')
-    wf = SlaterJastrow(mol)
+    wf = SlaterJastrow(mol).gto2sto()
     pos = torch.randn((args.batch,2,3)).view(args.batch, -1)
     e0 = wf.energy(pos)
 
@@ -70,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP(1, args.Deta)
+    eta = MLP([1, 50])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP(1, args.Dmu)
+        mu = MLP([1, 50])
         mu.init_zeros()
     else:
         mu = None
@@ -89,12 +87,12 @@ if __name__ == "__main__":
 
     model = GSVMC(args.nup, args.ndown, orbitals, basedist, cnf, 
                     pair_potential, sp_potential=sp_potential, nucl_potential=nucl_potential)
-    model.equilibrium_steps = 0 #1000
-    model.tau = 0.01
+    model.equilibrium_steps = 500
+    model.tau = 0.1
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.80)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
 
     # Print some info
     print("nup = %d, ndown = %d, Z = %.1f" % (args.nup, args.ndown, args.Z))
@@ -111,17 +109,20 @@ if __name__ == "__main__":
     import time
     mean_E = np.ndarray((args.iternum+1,))
     std_E = np.ndarray((args.iternum+1,))
+    model.equilibration_energy = True
     gradE = model(args.batch)
-    mean_E[0], std_E[0] = model.E, model.E_std
     
-    for i in range(1,args.iternum + 1):
+    mean_E[0], std_E[0] = model.E, model.E_std
+    equil_before_opt = np.squeeze(model.basedist.E_eq)
+    model.equilibration_energy = False
+    for i in range(1, args.iternum + 1):
         start = time.time()
 
         gradE = model(args.batch)
         optimizer.zero_grad()
         gradE.backward()
         optimizer.step()
-        scheduler.step()
+        # scheduler.step()
         
         speed = (time.time() - start) * 100 / 3600
         print("iter: %03d" % i, "E:", model.E, "E_std:", model.E_std, 
@@ -138,17 +139,21 @@ if __name__ == "__main__":
             os.makedirs(args.results_dir)
 
     e1 = wf.energy(pos)
-    
+
     last_iter = np.max([int(args.iternum*args.return_last),1])    
     average, std = np.average(mean_E[-last_iter:]), np.std(mean_E[-last_iter:])
     collective_std = np.sqrt(np.sum(std_E[-last_iter:]**2)/last_iter)
+    
     var_E = std_E**2
+    it = np.arange(args.iternum+1)
+    np.savetxt(os.path.join(args.results_dir, f"energy_variance.txt"), np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
+    np.savetxt(os.path.join(args.results_dir, f"energy_equilibration.txt"), equil_before_opt, fmt='%.3f')
         
     fig = plt.figure(figsize=(12, 8), dpi=200)
     plt.tight_layout()
 
     ax1 = fig.add_subplot(111)
-    ax1.set_xlim(0, args.iternum+1)
+    ax1.set_xlim(0, args.iternum)
     ax1.set_title("Average energy each iteration with indication of variance")
     ax1.set_xlabel('iteration')
     ax1.set_ylabel(u'energy')
@@ -159,9 +164,9 @@ if __name__ == "__main__":
     ax1.plot(np.arange(args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
     ax1.plot(np.arange(args.iternum + 1), mean_E, color = 'r', zorder = 4)
 
-    ax1.hlines([-1.1645], xmin=0, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
+    ax1.hlines([-1.125], xmin=0, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
 
-    plt.savefig(os.path.join(args.results_dir, f"h2-energy-iterations.jpg"),
+    plt.savefig(os.path.join(args.results_dir, f"he-energy-iterations.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
     plt.close()
     
@@ -212,13 +217,13 @@ if __name__ == "__main__":
                 
                 ax2.plot(r_bf.detach().cpu().numpy(), m_r.detach().cpu().numpy())
 
-                plt.savefig(os.path.join(args.results_dir, f"h2-backflow-viz-{int(i):04d}.jpg"),
+                plt.savefig(os.path.join(args.results_dir, f"he-backflow-viz-{int(i):04d}.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
                 plt.close()
         
         print('Create GIF')
-        img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"h2-backflow-viz-*.jpg")))]
-        img.save(fp=os.path.join(args.results_dir, "h2-backflow-viz.gif"), format='GIF', append_images=imgs,
+        img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"he-backflow-viz-*.jpg")))]
+        img.save(fp=os.path.join(args.results_dir, "he-backflow-viz.gif"), format='GIF', append_images=imgs,
                      save_all=True, duration=250, loop=0)
         
     # Visualization of samples in final flow
@@ -340,15 +345,15 @@ if __name__ == "__main__":
                 ax6.tricontourf(*np.vstack(np.meshgrid(q_x, q_y)).reshape([2, -1]),
                                 pXY, 200)
                 
-                plt.savefig(os.path.join(args.results_dir, f"h2-cnf-viz-{int(t*1000):05d}.jpg"),
+                plt.savefig(os.path.join(args.results_dir, f"he-cnf-viz-{int(t*1000):05d}.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
                 plt.close()
 
-            img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"h2-cnf-viz-*.jpg")))]
-            img.save(fp=os.path.join(args.results_dir, "h2-cnf-viz.gif"), format='GIF', append_images=imgs,
+            img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"he-cnf-viz-*.jpg")))]
+            img.save(fp=os.path.join(args.results_dir, "he-cnf-viz.gif"), format='GIF', append_images=imgs,
                      save_all=True, duration=250, loop=0)
 
-        print('Saved visualization animation at {}'.format(os.path.join(args.results_dir, "h2-cnf-viz.gif")))
+        print('Saved visualization animation at {}'.format(os.path.join(args.results_dir, "he-cnf-viz.gif")))
     
     print("Average energy of last", last_iter, "iterations: %.4f +/- %.4f" % (average, std))
     print("Collective standard deviation: %.4f" % collective_std)
