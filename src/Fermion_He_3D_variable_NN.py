@@ -68,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP([1, 15, 5])
+    eta = MLP([1, 17, 17, 17])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP([1, 15, 5])
+        mu = MLP([1, 17, 17, 17])
         mu.init_zeros()
     else:
         mu = None
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
-    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
 
     # Print some info
     print("nup = %d, ndown = %d, Z = %.1f" % (args.nup, args.ndown, args.Z))
@@ -138,16 +138,22 @@ if __name__ == "__main__":
     if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
 
-    e1 = wf.energy(pos)
-
     last_iter = np.max([int(args.iternum*args.return_last),1])    
     average, std = np.average(mean_E[-last_iter:]), np.std(mean_E[-last_iter:])
     collective_std = np.sqrt(np.sum(std_E[-last_iter:]**2)/last_iter)
+    if args.viz_bf:
+        eta_r = model.cnf.v_wrapper.v.eta(r_bf)
+        if not args.nomu:
+            mu_r = model.cnf.v_wrapper.v.mu(r_bf)
     
     var_E = std_E**2
     it = np.arange(args.iternum+1)
     np.savetxt(os.path.join(args.results_dir, f"energy_variance.txt"), np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
     np.savetxt(os.path.join(args.results_dir, f"energy_equilibration.txt"), equil_before_opt, fmt='%.3f')
+    if args.viz_bf:
+        np.savetxt(os.path.join(args.results_dir, f"eta_backflow.txt"), np.hstack((r_bf, eta_r.detach().numpy())), fmt='%.3e', header='distance - potential')
+        if not args.nomu:
+            np.savetxt(os.path.join(args.results_dir, f"mu_backflow.txt"), np.hstack((r_bf, mu_r.detach().numpy())), fmt='%.3e', header='distance - potential')
         
     fig = plt.figure(figsize=(12, 8), dpi=200)
     plt.tight_layout()
@@ -159,9 +165,9 @@ if __name__ == "__main__":
     ax1.set_ylabel(u'energy')
     ax1.grid()    
                 
-    ax1.fill_between(np.arange(args.iternum + 1), mean_E + var_E, mean_E - var_E, alpha = 0.2, color = 'C0', zorder = 1)
-    ax1.plot(np.arange(args.iternum + 1), mean_E - var_E, color = 'tab:blue', zorder = 2)
-    ax1.plot(np.arange(args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
+    # ax1.fill_between(np.arange(args.iternum + 1), mean_E + var_E, mean_E - var_E, alpha = 0.2, color = 'C0', zorder = 1)
+    # ax1.plot(np.arange(args.iternum + 1), mean_E - var_E, color = 'tab:blue', zorder = 2)
+    # ax1.plot(np.arange(args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
     ax1.plot(np.arange(args.iternum + 1), mean_E, color = 'r', zorder = 4)
 
     ax1.hlines([-2.9034], xmin=0, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
@@ -357,4 +363,4 @@ if __name__ == "__main__":
     
     print("Average energy of last", last_iter, "iterations: %.4f +/- %.4f" % (average, std))
     print("Collective standard deviation: %.4f" % collective_std)
-    print("QMCTorch wavefunction sampling gives %.4f at the start, %.4f at the end" % (e0, e1))
+    print("QMCTorch wavefunction sampling gives %.4f" % e0)
