@@ -74,11 +74,16 @@ class FreeFermion(BaseDist):
         E, E_std = Eloc.mean().item(), Eloc.std().item()
         return E, E_std
     
-    def sample(self, orbitals_up, orbitals_down, sample_shape, 
+    def sample(self, orbitals_up, orbitals_down, sample_shape, start_x=None,
             equilibrim_steps=100, tau=0.1, equilibration_energy=False, pot_ee=None, pot_en=None, pot_nn=None):
         #print("Sample a Slater determinant...")
         nup, ndown = len(orbitals_up), len(orbitals_down)
-        x = torch.randn(*sample_shape, nup + ndown, 3, device=self.device)
+        
+        if start_x is None:
+            x = torch.randn(*sample_shape, nup + ndown, 3, device=self.device)
+        else:
+            x = start_x
+
         logp = self.log_prob(orbitals_up, orbitals_down, x)
         self.E_eq = None
         if equilibration_energy:

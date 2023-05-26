@@ -68,10 +68,10 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP([1, 17, 17, 17])
+    eta = MLP([1, 50])
     eta.init_zeros()
     if not args.nomu:
-        mu = MLP([1, 17, 17, 17])
+        mu = MLP([1, 50])
         mu.init_zeros()
     else:
         mu = None
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     std_E = np.ndarray((args.iternum+1,))
     model.equilibration_energy = True
     gradE = model(args.batch)
-    
+
     mean_E[0], std_E[0] = model.E, model.E_std
     equil_before_opt = np.squeeze(model.basedist.E_eq)
     model.equilibration_energy = False
@@ -142,18 +142,18 @@ if __name__ == "__main__":
     average, std = np.average(mean_E[-last_iter:]), np.std(mean_E[-last_iter:])
     collective_std = np.sqrt(np.sum(std_E[-last_iter:]**2)/last_iter)
     if args.viz_bf:
-        eta_r = model.cnf.v_wrapper.v.eta(r_bf)
+        final_eta_r = model.cnf.v_wrapper.v.eta(r_bf)
         if not args.nomu:
-            mu_r = model.cnf.v_wrapper.v.mu(r_bf)
+            final_mu_r = model.cnf.v_wrapper.v.mu(r_bf)
     
     var_E = std_E**2
     it = np.arange(args.iternum+1)
     np.savetxt(os.path.join(args.results_dir, f"energy_variance.txt"), np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
     np.savetxt(os.path.join(args.results_dir, f"energy_equilibration.txt"), equil_before_opt, fmt='%.3f')
     if args.viz_bf:
-        np.savetxt(os.path.join(args.results_dir, f"eta_backflow.txt"), np.hstack((r_bf, eta_r.detach().numpy())), fmt='%.3e', header='distance - potential')
+        np.savetxt(os.path.join(args.results_dir, f"eta_backflow.txt"), np.hstack((r_bf, final_eta_r.detach().numpy())), fmt='%.3e', header='distance - potential')
         if not args.nomu:
-            np.savetxt(os.path.join(args.results_dir, f"mu_backflow.txt"), np.hstack((r_bf, mu_r.detach().numpy())), fmt='%.3e', header='distance - potential')
+            np.savetxt(os.path.join(args.results_dir, f"mu_backflow.txt"), np.hstack((r_bf, final_mu_r.detach().numpy())), fmt='%.3e', header='distance - potential')
         
     fig = plt.figure(figsize=(12, 8), dpi=200)
     plt.tight_layout()

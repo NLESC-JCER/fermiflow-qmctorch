@@ -30,10 +30,11 @@ class GSVMC(torch.nn.Module):
         self.equilibration_energy = False
         self.equilibrium_steps = 100
         self.tau = 0.1
+        self.z = None
 
     def sample(self, sample_shape):
         z = self.basedist.sample(self.orbitals_up, self.orbitals_down, sample_shape,\
-                                    self.equilibrium_steps, self.tau,\
+                                    self.z, self.equilibrium_steps, self.tau,\
                                     equilibration_energy=self.equilibration_energy,\
                                     pot_ee=self.pair_potential, pot_en=self.sp_potential,\
                                     pot_nn=self.nucl_potential)
@@ -45,10 +46,14 @@ class GSVMC(torch.nn.Module):
         logp = self.basedist.log_prob(self.orbitals_up, self.orbitals_down, z) - delta_logp
         return logp
 
-    def forward(self, batch):
+    def forward(self, batch, resample=False):
         from utils import y_grad_laplacian
 
-        _, x = self.sample((batch,))
+        if resample or self.z==None:
+            self.z, x = self.sample((batch,))
+            print('Resample from MCMC')
+        else:
+            x = self.cnf.generate(self.z)
         x.requires_grad_(True)
 
         logp_full = self.logp(x, params_require_grad=True)
