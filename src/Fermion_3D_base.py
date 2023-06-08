@@ -54,6 +54,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--resample_every', type=int, default=None)
     parser.add_argument('--resample_steps', type=int, default=0)
+    parser.add_argument('--molecule', type=str, default='He 0 0 0')
     
     args = parser.parse_args()
 
@@ -61,7 +62,7 @@ if __name__ == "__main__":
     device = torch.device('cpu')
  
     # Define molecule, wavefunction, orbitals, nuclear potential
-    mol = Molecule(atom='He 0 0 0', calculator='pyscf', basis='sto-3g', unit='bohr')
+    mol = Molecule(atom=args.molecule, calculator='pyscf', basis='sto-3g', unit='bohr')
     wf = SlaterJastrow(mol).gto2sto()
     pos = torch.randn((args.batch, args.nup+args.ndown, 3)).view(args.batch, -1)
     e0 = wf.energy(pos)
@@ -164,29 +165,8 @@ if __name__ == "__main__":
     if args.viz_bf:
         np.savetxt(os.path.join(args.results_dir, f"eta_backflow.txt"), np.hstack((r_bf, final_eta_r.detach().numpy())), fmt='%.3e', header='distance - potential')
         if not args.nomu:
-            np.savetxt(os.path.join(args.results_dir, f"mu_backflow.txt"), np.hstack((r_bf, final_mu_r.detach().numpy())), fmt='%.3e', header='distance - potential')
-        
-    fig = plt.figure(figsize=(12, 8), dpi=200)
-    plt.tight_layout()
-
-    ax1 = fig.add_subplot(111)
-    ax1.set_xlim(0, args.iternum)
-    ax1.set_title("Average energy each iteration with indication of variance")
-    ax1.set_xlabel('iteration')
-    ax1.set_ylabel(u'energy')
-    ax1.grid()    
-                
-    # ax1.fill_between(np.arange(args.iternum + 1), mean_E + var_E, mean_E - var_E, alpha = 0.2, color = 'C0', zorder = 1)
-    # ax1.plot(np.arange(args.iternum + 1), mean_E - var_E, color = 'tab:blue', zorder = 2)
-    # ax1.plot(np.arange(args.iternum + 1), mean_E + var_E, color = 'tab:blue', zorder = 3)
-    ax1.plot(np.arange(args.iternum + 1), mean_E, color = 'r', zorder = 4)
-
-    ax1.hlines([-2.9034], xmin=0, xmax=args.iternum + 1, colors='k', linestyles='--', zorder = 3.5)
-
-    plt.savefig(os.path.join(args.results_dir, f"he-energy-iterations.jpg"),
-                           pad_inches=0.2, bbox_inches='tight')
-    plt.close()
-    
+            np.savetxt(os.path.join(args.results_dir, f"mu_backflow.txt"), np.hstack((r_bf, final_mu_r.detach().numpy())), fmt='%.3e', header='distance - potential')     
+  
     # Visualization of backflow potential evolution   
     if args.viz_bf:
         print('Start vizualisation of evolution of backflow potentials')
@@ -234,13 +214,13 @@ if __name__ == "__main__":
                 
                 ax2.plot(r_bf.detach().cpu().numpy(), m_r.detach().cpu().numpy())
 
-                plt.savefig(os.path.join(args.results_dir, f"he-backflow-viz-{int(i):04d}.jpg"),
+                plt.savefig(os.path.join(args.results_dir, f"backflow-viz-{int(i):04d}.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
                 plt.close()
         
         print('Create GIF')
-        img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"he-backflow-viz-*.jpg")))]
-        img.save(fp=os.path.join(args.results_dir, "he-backflow-viz.gif"), format='GIF', append_images=imgs,
+        img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"backflow-viz-*.jpg")))]
+        img.save(fp=os.path.join(args.results_dir, "backflow-viz.gif"), format='GIF', append_images=imgs,
                      save_all=True, duration=250, loop=0)
         
     # Visualization of samples in final flow
@@ -366,11 +346,11 @@ if __name__ == "__main__":
                            pad_inches=0.2, bbox_inches='tight')
                 plt.close()
 
-            img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"he-cnf-viz-*.jpg")))]
-            img.save(fp=os.path.join(args.results_dir, "he-cnf-viz.gif"), format='GIF', append_images=imgs,
+            img, *imgs = [Image.open(f) for f in sorted(glob.glob(os.path.join(args.results_dir, f"cnf-viz-*.jpg")))]
+            img.save(fp=os.path.join(args.results_dir, "cnf-viz.gif"), format='GIF', append_images=imgs,
                      save_all=True, duration=250, loop=0)
 
-        print('Saved visualization animation at {}'.format(os.path.join(args.results_dir, "he-cnf-viz.gif")))
+        print('Saved visualization animation at {}'.format(os.path.join(args.results_dir, "cnf-viz.gif")))
     
     print("Average energy of last", last_iter, "iterations: %.4f +/- %.4f" % (average, std))
     print("Collective standard deviation: %.4f" % collective_std)
