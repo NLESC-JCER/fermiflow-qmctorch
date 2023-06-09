@@ -143,16 +143,7 @@ if __name__ == "__main__":
         
         optimizer.zero_grad()
         # gradE.backward()
-        for group in optimizer.param_groups:
-            print(len(group['params']))
-            for p in group['params']:
-                print(p.grad)
         psi.backward(gradE_psi)
-        for group in optimizer.param_groups:
-            print(len(group['params']))
-            for p in group['params']:
-                print(p.grad.flatten())
-        # exit()
         optimizer.step()
         # scheduler.step()
         
