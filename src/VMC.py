@@ -71,7 +71,7 @@ class GSVMC(torch.nn.Module):
 
         self.E, self.E_std = Eloc.mean().item(), Eloc.std().item()
         gradE = (logp_full * (Eloc.detach() - self.E)).mean()
-        return gradE
+        return gradE, Eloc
 
 class BetaVMC(torch.nn.Module):
     def __init__(self, beta, nup, ndown, deltaE, boltzmann,

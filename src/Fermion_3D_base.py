@@ -21,6 +21,8 @@ import glob
 from PIL import Image
 from mendeleev import element
 
+from NeuralODE.nnModule import solve_ivp_nnmodule
+
 def one_orbital(orb_idx):
     def orbital(x):
         Nbatch, N, dim = x.shape
@@ -64,6 +66,7 @@ if __name__ == "__main__":
     # Define molecule, wavefunction, orbitals, nuclear potential
     mol = Molecule(atom=args.molecule, calculator='pyscf', basis='sto-3g', unit='bohr')
     wf = SlaterJastrow(mol).gto2sto()
+    wf.use_jastrow = False
     pos = torch.randn((args.batch, args.nup+args.ndown, 3)).view(args.batch, -1)
     e0 = wf.energy(pos)
 
@@ -130,9 +133,26 @@ if __name__ == "__main__":
     for i in range(1, args.iternum + 1):
         start = time.time()
 
-        gradE = model(args.batch, resample=(i%resample_N==0))
+        gradE, Eloc = model(args.batch, resample=(i%resample_N==0))
+
+        # Block to get gradE_k from low variance method
+        #   psi.backward(gradE_psi) should compute dE/dpsi @ dpsi/dk
+        x = solve_ivp_nnmodule(model.cnf.v_wrapper, model.cnf.t_span, model.z, params_require_grad=True)
+        psi = wf(x).view(Eloc.shape)
+        gradE_psi = -2.*(Eloc.detach() - model.E)/(psi*len(psi))
+        
         optimizer.zero_grad()
-        gradE.backward()
+        # gradE.backward()
+        for group in optimizer.param_groups:
+            print(len(group['params']))
+            for p in group['params']:
+                print(p.grad)
+        psi.backward(gradE_psi)
+        for group in optimizer.param_groups:
+            print(len(group['params']))
+            for p in group['params']:
+                print(p.grad.flatten())
+        # exit()
         optimizer.step()
         # scheduler.step()
         
