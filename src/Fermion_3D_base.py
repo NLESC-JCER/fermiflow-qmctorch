@@ -57,7 +57,8 @@ if __name__ == "__main__":
     parser.add_argument('--resample_steps', type=int, default=0, help="number of MCMC steps for resampling")
     parser.add_argument('--molecule', type=str, default='He 0 0 0', help="molecule structure")
 
-    parser.add_argument('--mlp_init_seed', type=int, default=None, help="seed for MLP initizialization from gaussian, None sets all weights to zero")
+    parser.add_argument('--mlp_init_seed', type=int, default=None, help="seed for MLP initizialisation from gaussian, None sets all weights to zero")
+    parser.add_argument('--seed', type=int, default=0, help="seed for all random number generating apart from MLP initizialisation")
     parser.add_argument('--gradient_method', type=str, default='auto', help="method for calculating gradient of energy w.r.t. parameters")
     
     args = parser.parse_args()
@@ -67,6 +68,8 @@ if __name__ == "__main__":
     else:
         device = torch.device("cuda:%d" % args.cuda)    
  
+    torch.manual_seed(args.seed)
+
     # Define molecule, wavefunction, orbitals, nuclear potential
     mol = Molecule(atom=args.molecule, calculator='pyscf', basis='sto-3g', unit='bohr')
     wf = SlaterJastrow(mol).gto2sto()
@@ -92,6 +95,8 @@ if __name__ == "__main__":
     else:
         mu = None
     v = Backflow(eta, mu=mu, nuclear_positions=mol.atom_coords)
+
+    torch.manual_seed(args.seed)
 
     # Build model and initialize optimizer
     t_span = (args.t0, args.t1)
