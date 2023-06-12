@@ -41,32 +41,37 @@ if __name__ == "__main__":
     parser.add_argument("--ndown", type=int, default=1, help="number of spin-down electrons")
     parser.add_argument("--Z", type=float, default=1, help="Coulomb interaction strength")
 
-    parser.add_argument("--cuda", type=int, default=0, help="GPU device number")
+    parser.add_argument("--cuda", type=int, default=None, help="GPU device number, None uses CPU")
     parser.add_argument("--nomu", action="store_true", help="do not use the one-body backflow potential mu")
     parser.add_argument("--t0", type=float, default=0.0, help="starting time")
     parser.add_argument("--t1", type=float, default=1.0, help="ending time")
 
     parser.add_argument("--iternum", type=int, default=100, help="number of new iterations")
-    parser.add_argument("--return_last", type=float, default=0.1, help="Fraction of iterations over which to compute average")
     parser.add_argument("--batch", type=int, default=1000, help="batch size")
 
     parser.add_argument("--viz_flow", action="store_true", help="Visualize changing density in final flow")
     parser.add_argument("--viz_bf", action="store_true", help="Visualize optimization of backflow potentials")
     parser.add_argument('--results_dir', type=str, default="./results")
 
-    parser.add_argument('--resample_every', type=int, default=None)
-    parser.add_argument('--resample_steps', type=int, default=0)
-    parser.add_argument('--molecule', type=str, default='He 0 0 0')
+    parser.add_argument('--resample_every', type=int, default=None, help="number of iterations without resampling MCMC")
+    parser.add_argument('--resample_steps', type=int, default=0, help="number of MCMC steps for resampling")
+    parser.add_argument('--molecule', type=str, default='He 0 0 0', help="molecule structure")
+
+    parser.add_argument('--mlp_init_seed', type=int, default=None, help="seed for MLP initizialization from gaussian, None sets all weights to zero")
+    parser.add_argument('--gradient_method', type=str, default='auto', help="method for calculating gradient of energy w.r.t. parameters")
     
     args = parser.parse_args()
 
-    # device = torch.device("cuda:%d" % args.cuda)
-    device = torch.device('cpu')
+    if args.cuda == None:
+        device = torch.device('cpu')
+    else:
+        device = torch.device("cuda:%d" % args.cuda)    
  
     # Define molecule, wavefunction, orbitals, nuclear potential
     mol = Molecule(atom=args.molecule, calculator='pyscf', basis='sto-3g', unit='bohr')
     wf = SlaterJastrow(mol).gto2sto()
-    wf.use_jastrow = False
+    if args.gradient_method=='manual':
+        wf.use_jastrow = False
     pos = torch.randn((args.batch, args.nup+args.ndown, 3)).view(args.batch, -1)
     e0 = wf.energy(pos)
 
@@ -77,9 +82,13 @@ if __name__ == "__main__":
     # Initialize backflow for Continuous Normalizing Flow
     eta = MLP([1, 50])
     eta.init_zeros()
+    if args.mlp_init_seed is not None:
+        eta.init_gaussian(args.mlp_init_seed)
     if not args.nomu:
         mu = MLP([1, 50])
         mu.init_zeros()
+        if args.mlp_init_seed is not None:
+            mu.init_gaussian(args.mlp_init_seed)
     else:
         mu = None
     v = Backflow(eta, mu=mu, nuclear_positions=mol.atom_coords)
@@ -117,7 +126,7 @@ if __name__ == "__main__":
     mean_E = np.ndarray((args.iternum+1,))
     std_E = np.ndarray((args.iternum+1,))
     model.equilibration_energy = True
-    gradE = model(args.batch)
+    gradE, _ = model(args.batch)
 
     mean_E[0], std_E[0] = model.E, model.E_std
     equil_before_opt = np.squeeze(model.basedist.E_eq)
@@ -135,15 +144,20 @@ if __name__ == "__main__":
 
         gradE, Eloc = model(args.batch, resample=(i%resample_N==0))
 
-        # Block to get gradE_k from low variance method
-        #   psi.backward(gradE_psi) should compute dE/dpsi @ dpsi/dk
-        x = solve_ivp_nnmodule(model.cnf.v_wrapper, model.cnf.t_span, model.z, params_require_grad=True)
-        psi = wf(x).view(Eloc.shape)
-        gradE_psi = -2.*(Eloc.detach() - model.E)/(psi*len(psi))
-        
+        # Get gradE_k from low variance method (k = parameters)
+        #   psi.backward(gradE_psi) should compute  < 2(EL - <EL>)/psi * dpsi/dk > 
+        if args.gradient_method=='manual':
+            x = solve_ivp_nnmodule(model.cnf.v_wrapper, model.cnf.t_span, model.z, params_require_grad=True)
+            psi = wf(x).view(Eloc.shape)
+            gradE_psi = -2.*(Eloc.clone() - torch.mean(Eloc))/(psi*len(psi))
+
         optimizer.zero_grad()
-        # gradE.backward()
-        psi.backward(gradE_psi)
+
+        if args.gradient_method=='manual':
+            psi.backward(gradE_psi)
+        else:
+            gradE.backward()
+
         optimizer.step()
         # scheduler.step()
         
@@ -161,9 +175,6 @@ if __name__ == "__main__":
     if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
 
-    last_iter = np.max([int(args.iternum*args.return_last),1])    
-    average, std = np.average(mean_E[-last_iter:]), np.std(mean_E[-last_iter:])
-    collective_std = np.sqrt(np.sum(std_E[-last_iter:]**2)/last_iter)
     final_eta_r = model.cnf.v_wrapper.v.eta(r_bf)
     if not args.nomu:
         final_mu_r = model.cnf.v_wrapper.v.mu(r_bf)
@@ -361,6 +372,4 @@ if __name__ == "__main__":
 
         print('Saved visualization animation at {}'.format(os.path.join(args.results_dir, "cnf-viz.gif")))
     
-    print("Average energy of last", last_iter, "iterations: %.4f +/- %.4f" % (average, std))
-    print("Collective standard deviation: %.4f" % collective_std)
     print("QMCTorch wavefunction sampling gives %.4f" % e0)
