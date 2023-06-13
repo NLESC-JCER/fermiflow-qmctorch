@@ -75,7 +75,7 @@ if __name__ == "__main__":
     wf = SlaterJastrow(mol, cuda=(args.cuda != None)).gto2sto()
     if args.gradient_method=='manual':
         wf.use_jastrow = False
-    pos = torch.randn((args.batch, args.nup+args.ndown, 3)).view(args.batch, -1)
+    pos = torch.randn((args.batch, args.nup+args.ndown, 3), device=device).view(args.batch, -1)
     e0 = wf.energy(pos)
 
     orbitals = qmctorch_orbitals()
