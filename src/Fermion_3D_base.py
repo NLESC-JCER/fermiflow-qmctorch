@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     # Define molecule, wavefunction, orbitals, nuclear potential
     mol = Molecule(atom=args.molecule, calculator='pyscf', basis='sto-3g', unit='bohr')
-    wf = SlaterJastrow(mol).gto2sto()
+    wf = SlaterJastrow(mol, cuda=(args.cuda != None)).gto2sto()
     if args.gradient_method=='manual':
         wf.use_jastrow = False
     pos = torch.randn((args.batch, args.nup+args.ndown, 3)).view(args.batch, -1)
