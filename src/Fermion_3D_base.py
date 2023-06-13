@@ -94,7 +94,7 @@ if __name__ == "__main__":
             mu.init_gaussian(args.mlp_init_seed)
     else:
         mu = None
-    v = Backflow(eta, mu=mu, nuclear_positions=mol.atom_coords)
+    v = Backflow(eta, mu=mu, nuclear_positions=mol.atom_coords, device=device)
 
     torch.manual_seed(args.seed)
 

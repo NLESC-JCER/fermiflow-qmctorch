@@ -8,18 +8,19 @@ class Backflow(torch.nn.Module):
     particle number, and both xi_i and r_i are dim-dimensional vectors, dim being 
     the space dimension.
     """
-    def __init__(self, eta, mu=None, nuclear_positions=None):
+    def __init__(self, eta, mu=None, nuclear_positions=None, device='cpu'):
         """ The argument eta must be an instance of torch.nn.Module. """
         super(Backflow, self).__init__()
         self.eta = eta
         self.mu = mu
+        self.device = device
         nucl_pos = nuclear_positions
         if self.mu is not None: 
             if nucl_pos is None:
                 print("Warning: Backflow potential mu is provided, but nuclear positions are not",\
                   "revert to default: single nucleus at origin")
                 nucl_pos = [[0,0,0]]
-            self.nucl_pos = torch.Tensor(nucl_pos)
+            self.nucl_pos = torch.Tensor(nucl_pos, device=device)
             self.n_nucl, _ = self.nucl_pos.shape
 
     def _e_e(self, x):
