@@ -20,7 +20,7 @@ class Backflow(torch.nn.Module):
                 print("Warning: Backflow potential mu is provided, but nuclear positions are not",\
                   "revert to default: single nucleus at origin")
                 nucl_pos = [[0,0,0]]
-            self.nucl_pos = torch.Tensor(nucl_pos, device=device)
+            self.nucl_pos = torch.tensor(nucl_pos, device=self.device)
             self.n_nucl, _ = self.nucl_pos.shape
 
     def _e_e(self, x):

@@ -7,7 +7,7 @@ class MLP(torch.nn.Module):
     The gradient with respect to the input is handcoded for further convenience.
     The network is fully connected. At each layer, sigmoid activation is used.
     """
-    def __init__(self, layer_widths):
+    def __init__(self, layer_widths, device='cpu'):
         """
             list_of_widths: List of layer widths/dimensions, first value
                             is taken to be input dimension.
@@ -15,6 +15,7 @@ class MLP(torch.nn.Module):
                 [D_in, D_hidden_1, ..., D_hidden_N]
         """
         super(MLP, self).__init__()
+        self.device = device
         self.layers = torch.nn.ModuleList()
         self.layer_dims = layer_widths
         self.N_layers = len(layer_widths)-1
@@ -83,7 +84,7 @@ class MLP(torch.nn.Module):
         grad_total = torch.eye(1)
         for i in range(self.N_layers, 0, -1):
             grad_n = self.layers[i].weight * self.d_sigmoid(z[i-1])
-            grad_total = grad_total.matmul(grad_n)
+            grad_total = grad_total.matmul(grad_n.to(self.device))
         grad_x = grad_total.matmul(self.layers[0].weight)
         """
         grad_x = self.layers[0].weight
