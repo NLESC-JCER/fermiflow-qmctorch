@@ -87,12 +87,12 @@ if __name__ == "__main__":
     eta = MLP([1, 50], device=device)
     eta.init_zeros()
     if args.mlp_init_seed is not None:
-        eta.init_gaussian(args.mlp_init_seed, args.mpl_init_std)
+        eta.init_gaussian(args.mlp_init_seed, args.mlp_init_std)
     if not args.nomu:
         mu = MLP([1, 50], device=device)
         mu.init_zeros()
         if args.mlp_init_seed is not None:
-            mu.init_gaussian(args.mlp_init_seed, args.mpl_init_std)
+            mu.init_gaussian(args.mlp_init_seed, args.mlp_init_std)
     else:
         mu = None
     v = Backflow(eta, mu=mu, nuclear_positions=mol.atom_coords, device=device)
