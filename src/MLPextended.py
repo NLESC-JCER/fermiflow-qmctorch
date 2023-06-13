@@ -33,9 +33,8 @@ class MLP(torch.nn.Module):
             torch.nn.init.zeros_(self.layers[i].bias)
         torch.nn.init.zeros_(self.layers[-1].weight)
 
-    def init_gaussian(self, seed):
+    def init_gaussian(self, seed, std):
         torch.manual_seed(seed)
-        std = 1e-3
         for i in range(self.N_layers):
             torch.nn.init.normal_(self.layers[i].weight, std=std)
             torch.nn.init.normal_(self.layers[i].bias, std=std)

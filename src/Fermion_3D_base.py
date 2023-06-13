@@ -58,6 +58,7 @@ if __name__ == "__main__":
     parser.add_argument('--molecule', type=str, default='He 0 0 0', help="molecule structure")
 
     parser.add_argument('--mlp_init_seed', type=int, default=None, help="seed for MLP initizialisation from gaussian, None sets all weights to zero")
+    parser.add_argument('--mlp_init_std', type=float, default=1e-3, help="standard deviation of gaussian for MLP initizialisation")
     parser.add_argument('--seed', type=int, default=0, help="seed for all random number generating apart from MLP initizialisation")
     parser.add_argument('--gradient_method', type=str, default='auto', help="method for calculating gradient of energy w.r.t. parameters")
     
@@ -86,12 +87,12 @@ if __name__ == "__main__":
     eta = MLP([1, 50], device=device)
     eta.init_zeros()
     if args.mlp_init_seed is not None:
-        eta.init_gaussian(args.mlp_init_seed)
+        eta.init_gaussian(args.mlp_init_seed, args.mpl_init_std)
     if not args.nomu:
         mu = MLP([1, 50], device=device)
         mu.init_zeros()
         if args.mlp_init_seed is not None:
-            mu.init_gaussian(args.mlp_init_seed)
+            mu.init_gaussian(args.mlp_init_seed, args.mpl_init_std)
     else:
         mu = None
     v = Backflow(eta, mu=mu, nuclear_positions=mol.atom_coords, device=device)
@@ -150,16 +151,16 @@ if __name__ == "__main__":
         gradE, Eloc = model(args.batch, resample=(i%resample_N==0))
 
         # Get gradE_k from low variance method (k = parameters)
-        #   psi.backward(gradE_psi) should compute  < 2(EL - <EL>)/psi * dpsi/dk > 
+        #   psi.backward(E_weight) should compute  < 2(EL - <EL>)/psi * dpsi/dk > 
         if args.gradient_method=='manual':
             x = solve_ivp_nnmodule(model.cnf.v_wrapper, model.cnf.t_span, model.z, params_require_grad=True)
             psi = wf(x).view(Eloc.shape)
-            gradE_psi = -2.*(Eloc.clone() - torch.mean(Eloc))/(psi*len(psi))
+            E_weight = -2.*(Eloc.clone() - torch.mean(Eloc))/(psi*len(psi))
 
         optimizer.zero_grad()
 
         if args.gradient_method=='manual':
-            psi.backward(gradE_psi)
+            psi.backward(E_weight)
         else:
             gradE.backward()
 
@@ -215,7 +216,7 @@ if __name__ == "__main__":
                     eta_r, mu_r
             ):
                 print('Create plot for step', i, 'out of', args.iternum)
-                fig = plt.figure(figsize=(12, 8), dpi=200)
+                fig = plt.figure(figsize=(12, 8), dpi=150)
                 plt.suptitle(f'iter={i:04d}')
                 plt.tight_layout()
 
