@@ -81,7 +81,7 @@ class MLP(torch.nn.Module):
         for i in range(self.N_layers):
             x = self.activation(self.layers[i](x))
             z[i] = x[:,:,None]
-        grad_total = torch.eye(1)
+        grad_total = torch.eye(1).to(self.device)
         for i in range(self.N_layers, 0, -1):
             grad_n = self.layers[i].weight * self.d_sigmoid(z[i-1])
             grad_total = grad_total.matmul(grad_n.to(self.device))
