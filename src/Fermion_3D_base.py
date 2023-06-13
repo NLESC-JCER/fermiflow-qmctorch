@@ -83,12 +83,12 @@ if __name__ == "__main__":
     basedist = FreeFermion(device=device)
 
     # Initialize backflow for Continuous Normalizing Flow
-    eta = MLP([1, 50])
+    eta = MLP([1, 50], device=device)
     eta.init_zeros()
     if args.mlp_init_seed is not None:
         eta.init_gaussian(args.mlp_init_seed)
     if not args.nomu:
-        mu = MLP([1, 50])
+        mu = MLP([1, 50], device=device)
         mu.init_zeros()
         if args.mlp_init_seed is not None:
             mu.init_gaussian(args.mlp_init_seed)
