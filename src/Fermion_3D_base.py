@@ -188,9 +188,9 @@ if __name__ == "__main__":
     it = np.arange(args.iternum+1)
     np.savetxt(os.path.join(args.results_dir, f"energy_variance.txt"), np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.3f', '%.3f'], header='iteration - energy - variance')
     np.savetxt(os.path.join(args.results_dir, f"energy_equilibration.txt"), equil_before_opt, fmt='%.3f')
-    np.savetxt(os.path.join(args.results_dir, f"eta_backflow.txt"), np.hstack((r_bf, final_eta_r.detach().numpy())), fmt='%.3e', header='distance - potential')
+    np.savetxt(os.path.join(args.results_dir, f"eta_backflow.txt"), np.hstack((r_bf.detach().cpu().numpy(), final_eta_r.detach().cpu().numpy())), fmt='%.3e', header='distance - potential')
     if not args.nomu:
-        np.savetxt(os.path.join(args.results_dir, f"mu_backflow.txt"), np.hstack((r_bf, final_mu_r.detach().numpy())), fmt='%.3e', header='distance - potential')     
+        np.savetxt(os.path.join(args.results_dir, f"mu_backflow.txt"), np.hstack((r_bf.detach().cpu().numpy(), final_mu_r.detach().cpu().numpy())), fmt='%.3e', header='distance - potential')     
   
     # Visualization of backflow potential evolution   
     if args.viz_bf:
