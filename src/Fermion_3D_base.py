@@ -199,9 +199,13 @@ if __name__ == "__main__":
         if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
 
+        r_bf = r_bf.detach().cpu()
+        eta_r = eta_r.detach().cpu()
+
         plot_max_eta, plot_min_eta = torch.max(eta_r).item(), torch.min(eta_r).item()
         plot_max_mu = plot_min_mu = 0
         if not args.nomu:
+            mu_r = mu_r.detach().cpu()
             plot_max_mu, plot_min_mu = torch.max(mu_r).item(), torch.min(mu_r).item()
         plot_max = np.max([plot_max_eta,plot_max_mu])
         plot_min = np.min([plot_min_eta,plot_min_mu])
@@ -228,7 +232,7 @@ if __name__ == "__main__":
                 ax1.set_ylabel(u'\u03B7($r$)')
                 ax1.grid()
                 
-                ax1.plot(r_bf.detach().cpu().numpy(), n_r.detach().cpu().numpy())
+                ax1.plot(r_bf.numpy(), n_r.numpy())
 
                 ax2 = fig.add_subplot(122)
                 ax2.set_title('electron-nucleus')
@@ -238,7 +242,7 @@ if __name__ == "__main__":
                 ax2.set_ylabel(u'\u03BC($r$)')
                 ax2.grid()
                 
-                ax2.plot(r_bf.detach().cpu().numpy(), m_r.detach().cpu().numpy())
+                ax2.plot(r_bf.numpy(), m_r.numpy())
 
                 plt.savefig(os.path.join(args.results_dir, f"backflow-viz-{int(i):04d}.jpg"),
                            pad_inches=0.2, bbox_inches='tight')
