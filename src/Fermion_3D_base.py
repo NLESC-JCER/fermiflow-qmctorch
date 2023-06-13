@@ -120,7 +120,7 @@ if __name__ == "__main__":
     print("batch = %d, iternum = %d." % (args.batch, args.iternum))
 
     # for backflow visualization
-    r_bf = torch.linspace(0,20,200)[:,None]
+    r_bf = torch.linspace(0,20,200)[:,None].to(device=device)
     if args.viz_bf:
         eta_r = model.cnf.v_wrapper.v.eta(r_bf)
         if not args.nomu:
