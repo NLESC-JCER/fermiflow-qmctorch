@@ -24,7 +24,8 @@ class MLP(torch.nn.Module):
             self.layers.append(torch.nn.Linear(self.layer_dims[i], self.layer_dims[i+1]))
         self.layers.append(torch.nn.Linear(self.layer_dims[-1], 1, bias=False))
         
-        self.activation = torch.nn.Sigmoid()
+        self.activation = torch.nn.Sigmoid().to(self.device)
+        self.layers.to(self.device)
 
     def init_zeros(self):
         for i in range(self.N_layers):
