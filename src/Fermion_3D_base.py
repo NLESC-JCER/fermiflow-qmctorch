@@ -61,7 +61,8 @@ if __name__ == "__main__":
     parser.add_argument('--mlp_init_std', type=float, default=1e-3, help="standard deviation of gaussian for MLP initizialisation")
     parser.add_argument('--seed', type=int, default=0, help="seed for all random number generating apart from MLP initizialisation")
     parser.add_argument('--gradient_method', type=str, default='auto', help="method for calculating gradient of energy w.r.t. parameters")
-    
+    parser.add_argument('--learning_rate', type=float, default=1e-2, help='Optimizer learning rate')
+
     args = parser.parse_args()
 
     if args.cuda == None:
@@ -113,7 +114,7 @@ if __name__ == "__main__":
     model.tau = 0.1
     model.to(device=device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
 
     # Print some info
