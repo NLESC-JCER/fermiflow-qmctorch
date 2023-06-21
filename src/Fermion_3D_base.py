@@ -188,8 +188,8 @@ if __name__ == "__main__":
     
     var_E = std_E**2
     it = np.arange(args.iternum+1)
-    np.savetxt(os.path.join(args.results_dir, f"energy_variance.txt"), np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.5f', '%.5f'], header='iteration - energy - variance')
-    np.savetxt(os.path.join(args.results_dir, f"energy_equilibration.txt"), equil_before_opt, fmt='%.5f')
+    np.savetxt(os.path.join(args.results_dir, f"energy_variance.txt"), np.vstack((it, mean_E, var_E)).T, fmt=['%d', '%.7f', '%.7f'], header='iteration - energy - variance')
+    np.savetxt(os.path.join(args.results_dir, f"energy_equilibration.txt"), equil_before_opt, fmt='%.7f')
     np.savetxt(os.path.join(args.results_dir, f"eta_backflow.txt"), np.hstack((r_bf.detach().cpu().numpy(), final_eta_r.detach().cpu().numpy())), fmt='%.4e', header='distance - potential')
     if not args.nomu:
         np.savetxt(os.path.join(args.results_dir, f"mu_backflow.txt"), np.hstack((r_bf.detach().cpu().numpy(), final_mu_r.detach().cpu().numpy())), fmt='%.4e', header='distance - potential')     
