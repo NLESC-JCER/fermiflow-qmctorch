@@ -16,6 +16,6 @@ In the file src/Fermion_3D_base.py (lines 88 and 93), the MLP architectures can 
 
 Clone the repository and install the code from source or use the Python package manager:
 
-`git clone https://github.com/NLESC-JCER/fermiflow-qmctorch/`
-`cd fermiflow-qmctorch`
+`git clone https://github.com/NLESC-JCER/fermiflow-qmctorch/` <br>
+`cd fermiflow-qmctorch` <br>
 `pip install -e ./`
