@@ -9,10 +9,11 @@ Run `python src/Fermion_3D_base.py --help` to check out the available parameters
 python src/Fermion_3D_base.py --molecule 'He 0 0 0' --nup 1 --ndown 1 --batch 2000 --iternum 1000 --cuda 0
 ```
 
+## Additional remarks
+
 The backflow transformation consists of two potentials, which are each represented by a MLP with one hidden layer of 50 nodes.
 In the file src/Fermion_3D_base.py (lines 88 and 93), the MLP architectures can be adjusted. As of now this cannot be done through the options.
-
-Due to current limititations of QMCTorch, only equal number of spin-up and spind-down electrons are allowed.
+Due to current limititations of QMCTorch, only equal number of spin-up and spin-down electrons are allowed.
 
 ## Installation
 
